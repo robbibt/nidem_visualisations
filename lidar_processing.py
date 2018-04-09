@@ -30,22 +30,22 @@ bucket = s3.Bucket('qld.elvis')
 # Create spatial indexes #
 ##########################
 
-for mga_zone in proj_dict.keys():
-
-    # Get files information from bucket
-    files = bucket.objects.filter(Prefix="z{}/".format(mga_zone))
-
-    # Return only paths matching list
-    files_information = [file.key for file in files if file.key[-7:] == 'Las.zip']
-
-    # Extract coordinates and key value
-    coords = [(file_key[-25:-19], file_key[-18:-11], file_key) for file_key in files_information]
-
-    # Write to file
-    with open('{}output_data/lidar_index_{}.txt'.format(hdir, mga_zone), 'w') as fp:
-
-        # Write tile coordinates and file name/key to file
-        fp.write('\n'.join('%s %s %s' % x for x in coords))
+# for mga_zone in proj_dict.keys():
+#
+#     # Get files information from bucket
+#     files = bucket.objects.filter(Prefix="z{}/".format(mga_zone))
+#
+#     # Return only paths matching list
+#     files_information = [file.key for file in files if file.key[-7:] == 'Las.zip']
+#
+#     # Extract coordinates and key value
+#     coords = [(file_key[-25:-19], file_key[-18:-11], file_key) for file_key in files_information]
+#
+#     # Write to file
+#     with open('{}output_data/lidar_index_{}.txt'.format(hdir, mga_zone), 'w') as fp:
+#
+#         # Write tile coordinates and file name/key to file
+#         fp.write('\n'.join('%s %s %s' % x for x in coords))
 
 
 #################################
