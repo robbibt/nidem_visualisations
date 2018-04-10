@@ -3,7 +3,6 @@ import os
 import pandas as pd
 import numpy as np
 import datetime as dt
-from pyproj import Proj, transform
 from otps.predict_wrapper import predict_tide
 from otps import TimePoint
 from pytz import timezone
