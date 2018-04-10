@@ -1,96 +1,77 @@
-import boto3
-import botocore
 import os
-import zipfile
+import math
+import itertools
+import pandas as pd
+from pyproj import Proj, transform
 
 
-# Home directory
-hdir = "/g/data/r78/rt1527/item_dem/validation_data/point_clouds/"
+#########
+# Setup #
+#########
+
+# User input to read in setup parameters from file
+name = "Whitsunday"
+output_location = "C:/Users/u69654/Projects/lidar_processing/"
 
 # Dict to convert MGA zones to EPSG
 proj_dict = {'54': 'EPSG:28354', '55': 'EPSG:28355', '56': 'EPSG:28356'}
 
-
-####################
-# Set up Amazon S3 #
-####################
-
-# Set up resource
-s3 = boto3.resource('s3')
-
-# Print out bucket names
-for bucket in s3.buckets.all():
-    print(bucket.name)
-
-# Select QLD bucket
-bucket = s3.Bucket('qld.elvis')
+# Set up output location and files to read in
+study_areas_df = pd.read_csv('study_areas.csv', index_col=0)
+study_areas = study_areas_df.to_dict('index')
+input_location = study_areas[name]['input_loc']
+ul_x, ul_y = study_areas[name]['bbox_ul'].split(", ")
+br_x, br_y = study_areas[name]['bbox_br'].split(", ")
+all_combs = list(itertools.product(range(int(float(ul_x)), int(float(br_x)), 1000),
+                                   range(int(float(ul_y)), int(float(br_y)), -1000)))
+loc_strings = set([str(math.floor(x / 1000)) + str(math.floor(y / 1000)) for x, y in all_combs])
+file_keys = [study_areas[name]['input_name'].format(loc) for loc in loc_strings]
 
 
-##########################
-# Create spatial indexes #
-##########################
+########################
+# Extract LAS into csv #
+########################
 
-# for mga_zone in proj_dict.keys():
-#
-#     # Get files information from bucket
-#     files = bucket.objects.filter(Prefix="z{}/".format(mga_zone))
-#
-#     # Return only paths matching list
-#     files_information = [file.key for file in files if file.key[-7:] == 'Las.zip']
-#
-#     # Extract coordinates and key value
-#     coords = [(file_key[-25:-19], file_key[-18:-11], file_key) for file_key in files_information]
-#
-#     # Write to file
-#     with open('{}output_data/lidar_index_{}.txt'.format(hdir, mga_zone), 'w') as fp:
-#
-#         # Write tile coordinates and file name/key to file
-#         fp.write('\n'.join('%s %s %s' % x for x in coords))
+for file_key in file_keys:
 
-
-#################################
-# Download and extract from LAZ #
-#################################
-
-# Test download file from list (points = bottom left)
-for i, file_key in enumerate(["z55/Cairns_2010_Prj_SW_330000_8181000_1K_Las.zip",
-                              "z55/Cairns_2010_Prj_SW_330000_8180000_1K_Las.zip",
-                              "z55/Cairns_2010_Prj_SW_330000_8179000_1K_Las.zip",
-                              "z55/Cairns_2010_Prj_SW_330000_8178000_1K_Las.zip",
-                              "z55/Cairns_2010_Prj_SW_330000_8177000_1K_Las.zip"]):
-
-    mga_zone = file_key[1:3]
-    raw_basename = file_key[4:-4]
-    raw_filename = "{}raw_data/{}.zip".format(hdir, raw_basename)
-    unzipped_filename = "{}raw_data/{}.laz".format(hdir, raw_basename)
-    output_dir = "{}output_data".format(hdir)
-    output_filename = "{}_{}.txt".format(mga_zone, raw_basename)
-    print("Downloading and extracting {}, MGA zone {}".format(raw_basename, mga_zone))
+    mga_zone = file_key[-12:-10]
+    proj_crs = proj_dict[mga_zone]
+    input_filename = "{}{}.las".format(input_location, file_key)
+    output_dir = "{}output_data".format(output_location)
+    output_filename = "{}_{}.csv".format(mga_zone, file_key)
+    print("Downloading and extracting {}, MGA zone {}".format(file_key, mga_zone))
 
     try:
-
-        # Download file from S#
-        s3.Bucket('qld.elvis').download_file(file_key, raw_filename)
-
-        # Unzip zip file containing .LAZ point cloud
-        with zipfile.ZipFile(raw_filename, "r") as zip_ref:
-
-            zip_ref.extractall("{}raw_data/".format(hdir))
 
         # Use lastools to convert data to text
         las2text_string = 'C:/Users/u69654/Desktop/lastools/LAStools/bin/las2txt.exe ' \
                           '-i "{0}" ' \
+                          '-keep_random_fraction 0.005 ' \
                           '-drop_classification 7 ' \
-                          '-keep_random_fraction 0.02 ' \
-                          '-odir "{1}" -o "{2}" ' \
-                          '-parse xyzcpt -sep comma'.format(unzipped_filename, output_dir, output_filename)
-
+                          '-odir "{1}" -o "temp.txt" ' \
+                          '-parse xyzcpt -sep comma'.format(input_filename, output_dir)
         os.system(las2text_string)
 
-    except botocore.exceptions.ClientError as e:
+        # Read temporary file in and convert coordinates to lat/long
+        points_df = pd.read_csv("{}/temp.txt".format(output_dir), sep=",", header=None,
+                                names=["point_x", "point_y", "point_z", "point_cat", "point_path", "point_time"])
 
-        if e.response['Error']['Code'] == "404":
-            print("The object does not exist.")
+        # Assign tide point
+        tidepoint_lat, tidepoint_lon = [float(coord) for coord in study_areas[name]['tide_point'].split(", ")]
 
-        else:
-            raise
+        # Compute lon-lat coordinates for each point
+        point_lon, point_lat = transform(p1=Proj(init=proj_crs), p2=Proj(init='EPSG:4326'),
+                                         x=points_df['point_x'].values, y=points_df['point_y'].values)
+
+        # Assign dataset lon/lat to columns
+        points_df['tidepoint_lon'] = tile_lon
+        points_df['tidepoint_lat'] = tile_lat
+        points_df['point_lon'] = point_lon
+        points_df['point_lat'] = point_lat
+
+        # Export to file
+        points_df.to_csv("{}/test_{}".format(output_dir, output_filename), index=False)
+
+    except:
+
+        print("Failed tile {}".format(raw_basename))
