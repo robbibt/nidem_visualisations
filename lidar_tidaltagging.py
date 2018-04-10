@@ -89,6 +89,10 @@ def gps_sotw_utc(gps_sotw, reference_date, leap_seconds=10):
         return None
 
 
+#########
+# Setup #
+#########
+
 # User input to read in setup parameters from file
 name = "Whitsunday"
 hdir = "/g/data/r78/rt1527/item_dem/validation_data/point_clouds/"
@@ -100,6 +104,11 @@ proj_dict = {'54': 'EPSG:28354', '55': 'EPSG:28355', '56': 'EPSG:28356'}
 study_areas_df = pd.read_csv('study_areas.csv', index_col=0)
 study_areas = study_areas_df.to_dict('index')
 point_files = [os.path.basename(file) for file in glob.glob("{}output_data/*{}*.txt".format(hdir, name))]
+
+
+###############
+# Import data #
+###############
 
 # List of dataframes
 df_list = list()
