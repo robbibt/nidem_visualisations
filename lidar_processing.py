@@ -87,15 +87,3 @@ for file_key in file_keys:
         except:
 
             print("Failed tile {}".format(file_key))
-
-
-for file_key in file_keys:
-
-    input_filename = "{}{}.las".format(input_location, file_key)
-    output_dir = os.path.normpath("{}/raw_data/validation".format(os.getcwd()))
-    output_filename = "{}_{}.csv".format(mga_zone, file_key)
-    # print("Downloading and extracting {}, MGA zone {}".format(file_key, mga_zone))
-
-    # If file exists, extract from LAS
-    if os.path.isfile(input_filename):
-        print("Correct!")
