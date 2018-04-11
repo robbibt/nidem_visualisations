@@ -9,17 +9,16 @@ from pyproj import Proj, transform
 # Setup #
 #########
 
-# User input to read in setup parameters from file
+# User input
 name = "Whitsunday"
 output_location = "C:/Users/u69654/Projects/lidar_processing/"
 
-# Dict to convert MGA zones to EPSG
-proj_dict = {'54': 'EPSG:28354', '55': 'EPSG:28355', '56': 'EPSG:28356'}
-
-# Set up output location and files to read in
+# Set up output location to read in setup parameters from file
 study_areas_df = pd.read_csv('study_areas.csv', index_col=0)
 study_areas = study_areas_df.to_dict('index')
 input_location = study_areas[name]['input_loc']
+
+# Create list of all lidar tiles that occur within given bounding box
 ul_x, ul_y = study_areas[name]['bbox_ul'].split(", ")
 br_x, br_y = study_areas[name]['bbox_br'].split(", ")
 all_combs = list(itertools.product(range(int(float(ul_x)), int(float(br_x)), 1000),
@@ -35,7 +34,7 @@ file_keys = [study_areas[name]['input_name'].format(loc) for loc in loc_strings]
 for file_key in file_keys:
 
     mga_zone = file_key[-12:-10]
-    proj_crs = proj_dict[mga_zone]
+    proj_crs = {'54': 'EPSG:28354', '55': 'EPSG:28355', '56': 'EPSG:28356'}[mga_zone]
     input_filename = "{}{}.las".format(input_location, file_key)
     output_dir = "{}output_data".format(output_location)
     output_filename = "{}_{}.csv".format(mga_zone, file_key)
@@ -63,7 +62,7 @@ for file_key in file_keys:
         point_lon, point_lat = transform(p1=Proj(init=proj_crs), p2=Proj(init='EPSG:4326'),
                                          x=points_df['point_x'].values, y=points_df['point_y'].values)
 
-        # Assign dataset lon/lat to columns
+        # Assign tidepoint and point lon/lat to columns
         points_df['tidepoint_lon'] = tile_lon
         points_df['tidepoint_lat'] = tile_lat
         points_df['point_lon'] = point_lon

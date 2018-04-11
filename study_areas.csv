@@ -1,0 +1,2 @@
+key,input_loc,input_name,bbox_ul,bbox_br,tide_point,ref_date
+Whitsunday,//nas/cds/internal/physiography/topographic_relief/elevation/data/statedatasets/qld/WhitsundayCouncil2009/z55/2009/Mass_Points/LAS/Classified/AHD/Tiles_1k_1k/,WhitsundayCouncil2009-C2-AHD_{}_55_0001_0001,"575370.037, 7810458.421","583107.588, 7804571.713","-19.822948754, 147.757215491",2009-06-17 00:00:00
