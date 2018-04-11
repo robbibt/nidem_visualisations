@@ -94,16 +94,13 @@ def gps_sotw_utc(gps_sotw, reference_date, leap_seconds=10):
 #########
 
 # User input to read in setup parameters from file
-name = "Whitsunday"
-hdir = "/g/data/r78/rt1527/item_dem/validation_data/point_clouds/"
-
-# Dict to convert MGA zones to EPSG
-proj_dict = {'54': 'EPSG:28354', '55': 'EPSG:28355', '56': 'EPSG:28356'}
+name = 'Whitsunday'
+os.chdir('/g/data/r78/rt1527/nidem')
 
 # Dict of study areas and files to process
 study_areas_df = pd.read_csv('study_areas.csv', index_col=0)
 study_areas = study_areas_df.to_dict('index')
-point_files = [os.path.basename(file) for file in glob.glob("{}output_data/*{}*.txt".format(hdir, name))]
+point_files = glob.glob("raw_data/validation/*{}*.txt".format(name))
 
 
 ###############
@@ -117,8 +114,9 @@ df_list = list()
 for input_file in point_files:
 
     # Read in with pandas
-    points_df = pd.read_csv("{}output_data/{}".format(hdir, input_file), sep=",", header=None,
-                            names=["point_x", "point_y", "point_z", "point_cat", "point_path", "point_time"])
+    points_df = pd.read_csv(input_file, sep=",", header=None,
+                            names=['point_x', 'point_y', 'point_z', 'point_cat', 'point_path', 'point_time',
+                                   'tidepoint_lon', 'tidepoint_lat', 'point_lon', 'point_lat'])
 
     # Create dataframe
     df_list.append(points_df)
@@ -132,8 +130,9 @@ points_df = pd.concat(df_list)
 ################
 
 # Convert GPS time to datetime, and round to nearest hour
-points_df['point_time'] = points_df['point_time'].apply(lambda ts: gps_sotw_utc(ts, study_areas[name]['ref_date']))
-points_df['point_timeagg'] = points_df['point_time'].dt.round('5min')  # 30min
+ref_date = dt.datetime.strptime(study_areas[name]['ref_date'], "%Y-%m-%d %H:%M:%S")
+points_df['point_time'] = points_df['point_time'].apply(lambda ts: gps_sotw_utc(ts, ref_date))
+points_df['point_timeagg'] = points_df['point_time'].dt.round('1min')  # 30min
 
 
 #################
@@ -147,7 +146,7 @@ grouped_series = grouped_series.apply(lambda row: TimePoint(lon=row.iloc[0]['tid
                                                             timestamp=row.iloc[0]['point_timeagg']))
 
 # Convert grouped data to dataframe and compute tides
-grouped_df = grouped_series.to_frame(name="point_tidal")
+grouped_df = grouped_series.to_frame(name='point_tidal')
 grouped_df['point_tidal'] = [float(tp.tide_m) for tp in predict_tide(list(grouped_series))]  # 8 seconds
 
 # Join back into main dataframe
@@ -157,4 +156,4 @@ print(list(points_df.columns.values))
 # Select output columns and export to file
 points_df = points_df[['point_lon', 'point_lat', 'point_z', 'point_tidal',
                        'point_cat', 'point_path', 'point_time', 'point_timeagg']]
-points_df.to_csv("{}output_data/output_points_whitsunday2.csv".format(hdir), index=False)
+points_df.to_csv('output_data/validation/output_points_{}.csv'.format(name), index=False)
