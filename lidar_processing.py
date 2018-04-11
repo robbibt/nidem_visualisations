@@ -11,7 +11,7 @@ from pyproj import Proj, transform
 
 # User input
 name = "Whitsunday"
-output_location = "C:/Users/u69654/Projects/lidar_processing/"
+os.chdir("C:/Users/u69654/Projects/nidem-GA/")
 
 # Set up output location to read in setup parameters from file
 study_areas_df = pd.read_csv('study_areas.csv', index_col=0)
@@ -36,7 +36,7 @@ for file_key in file_keys:
     mga_zone = file_key[-12:-10]
     proj_crs = {'54': 'EPSG:28354', '55': 'EPSG:28355', '56': 'EPSG:28356'}[mga_zone]
     input_filename = "{}{}.las".format(input_location, file_key)
-    output_dir = "{}output_data".format(output_location)
+    output_dir = os.path.normpath("{}/raw_data/validation".format(os.getcwd()))
     output_filename = "{}_{}.csv".format(mga_zone, file_key)
     print("Downloading and extracting {}, MGA zone {}".format(file_key, mga_zone))
 
@@ -63,14 +63,18 @@ for file_key in file_keys:
                                          x=points_df['point_x'].values, y=points_df['point_y'].values)
 
         # Assign tidepoint and point lon/lat to columns
-        points_df['tidepoint_lon'] = tile_lon
-        points_df['tidepoint_lat'] = tile_lat
+        points_df['tidepoint_lon'] = tidepoint_lon
+        points_df['tidepoint_lat'] = tidepoint_lat
         points_df['point_lon'] = point_lon
         points_df['point_lat'] = point_lat
 
         # Export to file
-        points_df.to_csv("{}/test_{}".format(output_dir, output_filename), index=False)
+        points_df.to_csv("raw_data/validation/{}".format(output_filename), index=False)
+
+        # Clean up files
+        points_df = None
+        os.remove("raw_data/validation/temp.txt")
 
     except:
 
-        print("Failed tile {}".format(raw_basename))
+        print("Failed tile {}".format(file_key))
