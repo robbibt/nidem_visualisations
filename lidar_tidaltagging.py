@@ -100,28 +100,15 @@ os.chdir('/g/data/r78/rt1527/nidem')
 # Dict of study areas and files to process
 study_areas_df = pd.read_csv('study_areas.csv', index_col=0)
 study_areas = study_areas_df.to_dict('index')
-point_files = glob.glob("raw_data/validation/*{}*.txt".format(name))
+point_files = glob.glob("raw_data/validation/*{}*.csv".format(name))
 
 
 ###############
 # Import data #
 ###############
 
-# List of dataframes
-df_list = list()
-
-# Iterate through each file
-for input_file in point_files:
-
-    # Read in with pandas
-    points_df = pd.read_csv(input_file, sep=",", header=None,
-                            names=['point_x', 'point_y', 'point_z', 'point_cat', 'point_path', 'point_time',
-                                   'tidepoint_lon', 'tidepoint_lat', 'point_lon', 'point_lat'])
-
-    # Create dataframe
-    df_list.append(points_df)
-
-# Merge lists into single dataframe
+# Iterate through each file and merge list of dataframes into single dataframe
+df_list = [pd.read_csv(input_file, sep=",") for input_file in point_files]
 points_df = pd.concat(df_list)
 
 
@@ -129,7 +116,7 @@ points_df = pd.concat(df_list)
 # Convert time #
 ################
 
-# Convert GPS time to datetime, and round to nearest hour
+# Convert GPS time to datetime, and round to nearest minute to reduce calls to tide_predict
 ref_date = dt.datetime.strptime(study_areas[name]['ref_date'], "%Y-%m-%d %H:%M:%S")
 points_df['point_time'] = points_df['point_time'].apply(lambda ts: gps_sotw_utc(ts, ref_date))
 points_df['point_timeagg'] = points_df['point_time'].dt.round('1min')  # 30min
