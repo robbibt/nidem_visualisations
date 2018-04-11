@@ -65,7 +65,7 @@ for file_key in file_keys:
                                     names=["point_x", "point_y", "point_z", "point_cat", "point_path", "point_time"])
 
             # Assign tide point
-            tidepoint_lat, tidepoint_lon = [float(coord) for coord in study_areas[name]['tide_point'].split(",")]
+            tidepoint_lon, tidepoint_lat = [float(coord) for coord in study_areas[name]['tide_point'].split(",")]
 
             # Compute lon-lat coordinates for each point
             point_lon, point_lat = transform(p1=Proj(init=proj_crs), p2=Proj(init='EPSG:4326'),
@@ -87,3 +87,15 @@ for file_key in file_keys:
         except:
 
             print("Failed tile {}".format(file_key))
+
+
+for file_key in file_keys:
+
+    input_filename = "{}{}.las".format(input_location, file_key)
+    output_dir = os.path.normpath("{}/raw_data/validation".format(os.getcwd()))
+    output_filename = "{}_{}.csv".format(mga_zone, file_key)
+    # print("Downloading and extracting {}, MGA zone {}".format(file_key, mga_zone))
+
+    # If file exists, extract from LAS
+    if os.path.isfile(input_filename):
+        print("Correct!")
