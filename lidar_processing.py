@@ -10,7 +10,7 @@ from pyproj import Proj, transform
 #########
 
 # User input
-name = "Gladstone"
+name = "Whitsunday"
 os.chdir("C:/Users/u69654/Projects/nidem-GA/")
 
 # Set up output location to read in setup parameters from file
