@@ -134,13 +134,16 @@ grouped_series = grouped_series.apply(lambda row: TimePoint(lon=row.iloc[0]['tid
 
 # Convert grouped data to dataframe and compute tides
 grouped_df = grouped_series.to_frame(name='point_tidal')
-grouped_df['point_tidal'] = [float(tp.tide_m) for tp in predict_tide(list(grouped_series))]  # 8 seconds
+grouped_df['point_tidal'] = [float(tp.tide_m) for tp in predict_tide(list(grouped_series))]
 
 # Join back into main dataframe
 points_df = points_df.join(grouped_df, on=['tidepoint_lat', 'tidepoint_lon', 'point_timeagg'], rsuffix="_test")
-print(list(points_df.columns.values))
+
+# Filter dataframe to keep only points located higher than tidal height and below 5m
+filteredpoints_df = points_df[(points_df.point_z > (points_df.point_tidal + 0.15)) & (points_df.point_z < 5)]
+print("Discarding {} points below or at tidal height or above 5m".format(len(points_df) - len(filteredpoints_df)))
 
 # Select output columns and export to file
-points_df = points_df[['point_lon', 'point_lat', 'point_z', 'point_tidal',
-                       'point_cat', 'point_path', 'point_time', 'point_timeagg']]
-points_df.to_csv('output_data/validation/output_points_{}.csv'.format(name), index=False)
+filteredpoints_df = filteredpoints_df[['point_lon', 'point_lat', 'point_z', 'point_tidal',
+                                       'point_cat', 'point_path', 'point_time', 'point_timeagg']]
+filteredpoints_df.to_csv('output_data/validation/output_points_{}.csv'.format(name), index=False)
