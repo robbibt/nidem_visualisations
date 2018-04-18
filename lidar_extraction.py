@@ -23,8 +23,8 @@ ul_lon, ul_lat = [float(coord) for coord in study_areas[name]['bbox_ul'].split("
 br_lon, br_lat = [float(coord) for coord in study_areas[name]['bbox_br'].split(",")]
 
 # Convert lat-lon coordinates to local MGA zone
-mga_zone = study_areas[name]['input_name'][-12:-10]
-proj_crs = {'54': 'EPSG:28354', '55': 'EPSG:28355', '56': 'EPSG:28356'}[mga_zone]
+mga_zone = study_areas[name]['mga_zone']
+proj_crs = {54: 'EPSG:28354', 55: 'EPSG:28355', 56: 'EPSG:28356'}[mga_zone]
 (ul_x, br_x), (ul_y, br_y) = transform(p1=Proj(init='EPSG:4326'), p2=Proj(init=proj_crs),
                                        x=[ul_lon, br_lon], y=[ul_lat, br_lat])
 
