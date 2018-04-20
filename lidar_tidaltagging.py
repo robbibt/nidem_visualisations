@@ -94,7 +94,7 @@ def gps_sotw_utc(gps_sotw, reference_date, leap_seconds=10):
 #########
 
 # User input to read in setup parameters from file
-name = 'Whitsunday'
+name = 'Kaurumba'
 os.chdir('/g/data/r78/rt1527/nidem')
 
 # Dict of study areas and files to process
@@ -102,48 +102,55 @@ study_areas_df = pd.read_csv('study_areas.csv', index_col=0)
 study_areas = study_areas_df.to_dict('index')
 point_files = glob.glob("raw_data/validation/*{}*.csv".format(name))
 
+# List of ref dates
+ref_dates = [i.to_pydatetime() for i in pd.date_range(start=dt.datetime(2010, 5, 27, 0, 0),
+                                                      end=dt.datetime(2010, 6, 19, 0, 0),
+                                                      freq="7D")]
 
-###############
-# Import data #
-###############
+for i, ref_date in enumerate(ref_dates):
 
-# Iterate through each file and merge list of dataframes into single dataframe
-df_list = [pd.read_csv(input_file, sep=",") for input_file in point_files]
-points_df = pd.concat(df_list)
+    ###############
+    # Import data #
+    ###############
 
-
-################
-# Convert time #
-################
-
-# Convert GPS time to datetime, and round to nearest minute to reduce calls to tide_predict
-ref_date = dt.datetime.strptime(study_areas[name]['ref_date'], "%Y-%m-%d %H:%M:%S")
-points_df['point_time'] = points_df['point_time'].apply(lambda ts: gps_sotw_utc(ts, ref_date))
-points_df['point_timeagg'] = points_df['point_time'].dt.round('1min')  # 30min
+    # Iterate through each file and merge list of dataframes into single dataframe
+    df_list = [pd.read_csv(input_file, sep=",") for input_file in point_files]
+    points_df = pd.concat(df_list)
 
 
-#################
-# Compute tides #
-#################
+    ################
+    # Convert time #
+    ################
 
-# Group into unique times and locations, create TimePoints and model tides
-grouped_series = points_df.groupby(['tidepoint_lat', 'tidepoint_lon', 'point_timeagg'])
-grouped_series = grouped_series.apply(lambda row: TimePoint(lon=row.iloc[0]['tidepoint_lon'],
-                                                            lat=row.iloc[0]['tidepoint_lat'],
-                                                            timestamp=row.iloc[0]['point_timeagg']))
+    # Conert GPS time to datetime, and round to nearest minute to reduce calls to tide_predict
+    ref_date = dt.datetime.strptime(study_areas[name]['ref_date'], "%Y-%m-%d %H:%M:%S")
+    points_df['point_time'] = points_df['point_time'].apply(lambda ts: gps_sotw_utc(ts, ref_date))
+    points_df['point_timeagg'] = points_df['point_time'].dt.round('1min')  # 30min
 
-# Convert grouped data to dataframe and compute tides
-grouped_df = grouped_series.to_frame(name='point_tidal')
-grouped_df['point_tidal'] = [float(tp.tide_m) for tp in predict_tide(list(grouped_series))]
 
-# Join back into main dataframe
-points_df = points_df.join(grouped_df, on=['tidepoint_lat', 'tidepoint_lon', 'point_timeagg'], rsuffix="_test")
+    #################
+    # Compute tides #
+    #################
 
-# Filter dataframe to keep only points located higher than tidal height and below 5m
-filteredpoints_df = points_df[(points_df.point_z > (points_df.point_tidal + 0.15)) & (points_df.point_z < 5)]
-print("Discarding {} points below or at tidal height or above 5m".format(len(points_df) - len(filteredpoints_df)))
+    # Group into unique times and locations, create TimePoints and model tides
+    grouped_series = points_df.groupby(['tidepoint_lat', 'tidepoint_lon', 'point_timeagg'])
+    grouped_series = grouped_series.apply(lambda row: TimePoint(lon=row.iloc[0]['tidepoint_lon'],
+                                                                lat=row.iloc[0]['tidepoint_lat'],
+                                                                timestamp=row.iloc[0]['point_timeagg']))
 
-# Select output columns and export to file
-filteredpoints_df = filteredpoints_df[['point_lon', 'point_lat', 'point_z', 'point_tidal',
-                                       'point_cat', 'point_path', 'point_time', 'point_timeagg']]
-filteredpoints_df.to_csv('output_data/validation/output_points_{}.csv'.format(name), index=False)
+    # Convert grouped data to dataframe and compute tides
+    grouped_df = grouped_series.to_frame(name='point_tidal')
+    grouped_df['point_tidal'] = [float(tp.tide_m) for tp in predict_tide(list(grouped_series))]
+
+    # Join back into main dataframe
+    points_df = points_df.join(grouped_df, on=['tidepoint_lat', 'tidepoint_lon', 'point_timeagg'], rsuffix="_test")
+
+    # Filter dataframe to keep only points located higher than tidal height and below 5m
+    filteredpoints_df = points_df[(points_df.point_z > (points_df.point_tidal + 0.15)) & (points_df.point_z < 5)]
+    print("Discarding {} points below or at tidal height or above 5m".format(len(points_df) - len(filteredpoints_df)))
+
+    # Select output columns and export to file
+    filteredpoints_df = filteredpoints_df[['point_lon', 'point_lat', 'point_z', 'point_tidal',
+                                           'point_cat', 'point_path', 'point_time', 'point_timeagg']]
+    filteredpoints_df.to_csv('output_data/validation/output_points_{}.csv'.format(name), index=False)
+    # filteredpoints_df.to_csv('output_data/validation/output_points_{}_{}.csv'.format(name, i), index=False)
