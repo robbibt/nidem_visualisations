@@ -10,8 +10,8 @@ from pyproj import Proj, transform
 #########
 
 # User input
-name = "Whitsunday"
-os.chdir("C:/Users/u69654/Projects/nidem-GA/")
+name = 'Kaurumba'
+os.chdir('C:/Users/u69654/Projects/nidem-GA/')
 
 # Set up output location to read in setup parameters from file
 study_areas_df = pd.read_csv('study_areas.csv', index_col=0)
@@ -33,7 +33,7 @@ all_combs = list(itertools.product(range(int(ul_x), int(br_x), 1000),
                                    range(int(ul_y), int(br_y), -1000)))
 loc_strings = set([str(math.floor(x / 1000)) + str(math.floor(y / 1000)) for x, y in all_combs])
 file_keys = [study_areas[name]['input_name'].format(loc) for loc in loc_strings]
-
+print(len(file_keys))
 
 ########################
 # Extract LAS into csv #
@@ -41,28 +41,28 @@ file_keys = [study_areas[name]['input_name'].format(loc) for loc in loc_strings]
 
 for file_key in file_keys:
 
-    input_filename = "{}{}.las".format(input_location, file_key)
-    output_dir = os.path.normpath("{}/raw_data/validation".format(os.getcwd()))
+    input_filename = '{}{}.las'.format(input_location, file_key)
+    output_dir = os.path.normpath('{}/raw_data/validation'.format(os.getcwd()))
     output_filename = "{}_{}.csv".format(mga_zone, file_key)
-    print("Downloading and extracting {}, MGA zone {}".format(file_key, mga_zone))
+    print('Downloading and extracting {}, MGA zone {}'.format(file_key, mga_zone))
 
-    # If file exists, extract from LAS
-    if os.path.isfile(input_filename):
+    # If input file exists and not already processed, extract from LAS
+    if os.path.isfile(input_filename) and not os.path.isfile('raw_data/validation/{}'.format(output_filename)):
 
         try:
 
             # Use lastools to convert data to text
             las2text_string = 'C:/Users/u69654/Desktop/lastools/LAStools/bin/las2txt.exe ' \
                               '-i "{0}" ' \
-                              '-keep_random_fraction 0.005 ' \
+                              '-keep_random_fraction 0.01 ' \
                               '-drop_classification 7 ' \
                               '-odir "{1}" -o "temp.txt" ' \
                               '-parse xyzcpt -sep comma'.format(input_filename, output_dir)
             os.system(las2text_string)
 
             # Read temporary file in and convert coordinates to lat/long
-            points_df = pd.read_csv("{}/temp.txt".format(output_dir), sep=",", header=None,
-                                    names=["point_x", "point_y", "point_z", "point_cat", "point_path", "point_time"])
+            points_df = pd.read_csv('{}/temp.txt'.format(output_dir), sep=',', header=None,
+                                    names=['point_x', 'point_y', 'point_z', 'point_cat', 'point_path', 'point_time'])
 
             # Assign tide point
             tidepoint_lon, tidepoint_lat = [float(coord) for coord in study_areas[name]['tide_point'].split(",")]
@@ -78,12 +78,50 @@ for file_key in file_keys:
             points_df['point_lat'] = point_lat
 
             # Export to file
-            points_df.to_csv("raw_data/validation/{}".format(output_filename), index=False)
+            points_df.to_csv('raw_data/validation/{}'.format(output_filename), index=False)
 
             # Clean up files
             points_df = None
-            os.remove("raw_data/validation/temp.txt")
+            os.remove('raw_data/validation/temp.txt')
 
         except:
 
-            print("Failed tile {}".format(file_key))
+            print('Failed tile {}'.format(file_key))
+
+
+#####################
+# Export shapefiles #
+#####################
+
+# # Export Lidar sample sites to file
+# lidar_val_sites = pd.DataFrame.from_dict({key:value["tide_point"].split(",") for key, value in study_areas.items()}, orient='index')
+# lidar_val_sites.columns = ['longitude', 'latitude']
+# lidar_val_sites.to_csv("lidar_validation_sites.csv")
+
+from shapely.geometry import mapping, Polygon
+import fiona
+
+# Import and plit columns
+lidar_val_sites = pd.DataFrame.from_dict(study_areas, orient='index')
+lidar_val_sites['bbox_ul'] = lidar_val_sites['bbox_ul'].str.split(',')
+lidar_val_sites['bbox_br'] = lidar_val_sites['bbox_br'].str.split(',')
+
+# Define a polygon feature geometry with one attribute
+schema = {'geometry': 'Polygon',
+          'properties': {'id': 'str'}}
+
+# Write a new Shapefile
+with fiona.open('lidar_validation_sites.shp', 'w', 'ESRI Shapefile', schema,
+                crs={'init': 'epsg:4326', 'no_defs': True}) as shapefile:
+
+    for row in range(0, len(lidar_val_sites), 1):
+
+        # Here's an example Shapely geometry
+        (a, b), (c, d) = lidar_val_sites.iloc[row, 2:4]
+        point_list = list(itertools.product([float(a), float(c)], [float(b), float(d)]))
+
+        poly = Polygon([point_list[i] for i in [0, 2, 3, 1]])
+
+        # If there are multiple geometries, put the "for" loop here
+        shapefile.write({'geometry': mapping(poly),
+                         'properties': {'id': lidar_val_sites.index[row]}})
