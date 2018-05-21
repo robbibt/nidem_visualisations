@@ -8,5 +8,6 @@
 *.cpg
 *.tif
 *.xml
+*.aux.xml
 *.gitignore~
 *.ipynb_checkpoints/

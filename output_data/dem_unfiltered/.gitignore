@@ -1,0 +1,13 @@
+*.jpg
+*.png
+*.shx
+*.shp
+*.prj
+*.dbf
+*.qpj
+*.cpg
+*.tif
+*.xml
+*.aux.xml
+*.gitignore~
+*.ipynb_checkpoints/
