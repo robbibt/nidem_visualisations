@@ -11,17 +11,18 @@
 # 
 # 1. Contour line shapefiles (`NIDEM_contours_XXX.shp`) used for the interpolation. These datasets facilitate
 #    re-analysis by allowing DEMs to be generated using alternative interpolation methods.
-# 2. Mask rasters (`NIDEM_mask_XXX.tif` and `NIDEM_mask_XXX.netcdf`) that flag cells with elevations greater than
-#    25m (value=1), less than -25m (value=2), and ITEM confidence NDWI standard deviation greater than 0.25 (value=3).
-#    These masks were used to filter the output NIDEM layers.
-# 3. Unfiltered NIDEM rasters (`NIDEM_unfiltered_XXX.tif` and `NIDEM_unfiltered_XXX.netcdf`) with elevations in metre
-#    relative to Mean Sea Level.
-# 4. Filtered NIDEM rasters (`NIDEM_dem_XXX.tif` and `NIDEM_dem_XXX.netcdf`) with elevations in metre units relative to
-#    Mean Sea Level that have been cleaned by masking out cells included in the mask layers. This is the primary
+# 2. Mask rasters (`NIDEM_mask_XXX.tif`) that flag cells with elevations greater than 25 m (value=1), less than
+#    -25 m (value=2), and ITEM confidence NDWI standard deviation greater than 0.25 (value=3). These masks were used
+#    to filter the output NIDEM layers.
+# 3. Unfiltered NIDEM rasters (`NIDEM_unfiltered_XXX.tif`) with elevations in metres relative to Mean Sea Level.
+# 4. Filtered NIDEM rasters (`NIDEM_dem_XXX.tif` and `NIDEM_dem_XXX.nc`) with elevations in metre units relative
+#    to Mean Sea Level that have been cleaned by masking out cells included in the mask layers. This is the primary
 #    output product, and is expected to be the default product used for most applications.
+#
+# The mask, unfiltered and filtered NIDEM products are also exported as a combined NetCDF dataset ('NIDEM_XXX.nc').
 # 
 # Date: June 2018
-# Author: Robbi Bishop-Taylor
+# Author: Robbi Bishop-Taylor, Steven Sagar, Leo Lymburner
 
 
 #####################################
@@ -41,6 +42,11 @@ from osgeo import gdal
 from scipy import ndimage as nd
 from fiona.crs import from_epsg
 from shapely.geometry import LineString, MultiLineString, mapping
+from datacube.model import Variable
+from datacube.utils.geometry import Coordinate
+from datacube.utils.geometry import CRS
+from datacube.storage.storage import create_netcdf_storage_unit
+from datacube.storage import netcdf_writer
 
 
 def rasterize_vector(input_data, cols, rows, geo_transform, projection,
@@ -57,6 +63,7 @@ def rasterize_vector(input_data, cols, rows, geo_transform, projection,
 
     Last modified: April 2018
     Author: Robbi Bishop-Taylor
+
     :param input_data:
         Input shapefile path or preloaded GDAL/OGR layer. This must be in the same
         projection system as the desired output raster (i.e. same as the 'projection'
@@ -283,11 +290,11 @@ item_conf_path = '/g/data2/v10/ITEM/conf_products'
 gbr30_raster = '/g/data/r78/rt1527/datasets/GBR30/02_ESRI_Raster/gbr30_ALL/gbr30_all'
 ausbath09_raster = '/g/data/r78/rt1527/datasets/ausbath_09/ausbath_09_v4'
 srtm30_raster = '/g/data/rr1/Elevation/1secSRTM_DEMs_v1.0/DEM/Mosaic/dem1sv1_0'
-manually_included_shp = 'scratch/manual_mask.shp'
+manually_included_shp = 'raw_data/manually_included.shp'
 
 # Set ITEM polygon for analysis
 polygon_ID = 96
-# Issues with # 18, 131, 162, 172, 204, 220, 226, 238, 240, 301
+# todo: resolve issues with # 18, 131, 162, 172, 204, 220, 226, 238, 240, 301)
 
 # Print run details
 print('Processing polygon {} from {}'.format(polygon_ID, item_offset_path))
@@ -429,13 +436,13 @@ conf_mask = conf_array > 0.25
 #  1 = elevation mask
 #  2 = bathymetry mask
 #  3 = ITEM confidence mask
-combined_mask = np.full(item_array.shape, -9999)
-combined_mask[elev_mask] = 1
-combined_mask[bathy_mask] = 2
-combined_mask[conf_mask] = 3
+nidem_mask = np.full(item_array.shape, -9999)
+nidem_mask[elev_mask] = 1
+nidem_mask[bathy_mask] = 2
+nidem_mask[conf_mask] = 3
 
 # Set manually included pixels to -9999 to prevent masking
-combined_mask[manually_included] = -9999
+nidem_mask[manually_included] = -9999
 
 
 ####################
@@ -537,7 +544,7 @@ valid_intertidal_extent = np.where((item_array > 0) & (item_array < 9), 1, 0)
 
 # Create filtered and unfiltered versions of NIDEM
 nidem_unfiltered = np.where(valid_intertidal_extent, interpolated_array, -9999).astype(np.float32)
-nidem_filtered = np.where(combined_mask > 0, -9999, nidem_unfiltered).astype(np.float32)
+nidem_filtered = np.where(nidem_mask > 0, -9999, nidem_unfiltered).astype(np.float32)
 
 
 #######################
@@ -549,8 +556,8 @@ nidem_filtered = np.where(combined_mask > 0, -9999, nidem_unfiltered).astype(np.
 
 # Export NIDEM mask as a GeoTIFF
 print('Exporting NIDEM mask for polygon {}'.format(polygon_ID))
-array_to_geotiff(fname='output_data/mask/geotiff/NIDEM_mask_{}.tif'.format(polygon_ID),
-                 data=combined_mask.astype(int),
+array_to_geotiff(fname='output_data/geotiff/mask/NIDEM_mask_{}.tif'.format(polygon_ID),
+                 data=nidem_mask.astype(int),
                  geo_transform=geotrans,
                  projection=prj,
                  nodata_val=-9999)
@@ -576,34 +583,51 @@ array_to_geotiff(fname='output_data/geotiff/dem/NIDEM_dem_{}.tif'.format(polygon
 # Export NetCDF data #
 ######################
 
-# os.remove('/g/data/r78/rt1527/nidem/output_data/netcdf/NIDEM_new.nc')
-
-from datacube.model import Variable
-from datacube.utils.geometry import Coordinate
-from datacube.utils.geometry import CRS
-from datacube.storage.storage import create_netcdf_storage_unit
-from datacube.storage import netcdf_writer
-
 # Compute coords
 x_coords = netcdf_writer.netcdfy_coord(np.linspace(upleft_x + 12.5, bottomright_x - 12.5, num=xcols))
 y_coords = netcdf_writer.netcdfy_coord(np.linspace(upleft_y - 12.5, bottomright_y + 12.5, num=yrows))
 
 # Create new dataset
-output_netcdf = create_netcdf_storage_unit(filename='/g/data/r78/rt1527/nidem/output_data/netcdf/NIDEM_new.nc',
+filename_netcdf = 'output_data/netcdf/NIDEM_{}.nc'.format(polygon_ID)
+output_netcdf = create_netcdf_storage_unit(filename=filename_netcdf,
                                            crs=CRS('EPSG:3577'),
                                            coordinates={'x': Coordinate(x_coords, 'metres'),
                                                         'y': Coordinate(y_coords, 'metres')},
-                                           variables={'elevation': Variable(dtype=np.dtype('float32'),
-                                                       nodata=-9999, dims=('y', 'x'), units='metres')},
-                                           variable_params={'elevation': {}})
+                                           variables={'dem': Variable(dtype=np.dtype('float32'),
+                                                                      nodata=-9999,
+                                                                      dims=('y', 'x'),
+                                                                      units='metres'),
+                                                      'dem_unfiltered': Variable(dtype=np.dtype('float32'),
+                                                                                 nodata=-9999,
+                                                                                 dims=('y', 'x'),
+                                                                                 units='metres'),
+                                                      'mask': Variable(dtype=np.dtype('int16'),
+                                                                       nodata=-9999,
+                                                                       dims=('y', 'x'),
+                                                                       units='metres')},
+                                           variable_params={'dem': {}})
 
-# Assign data and set variable attributes
-output_netcdf['elevation'][:] = netcdf_writer.netcdfy_data(nidem_unfiltered)
-output_netcdf['elevation'].valid_range = [-25.0, 25.0]
-output_netcdf['elevation'].standard_name = 'height_above_mean_sea_level'
-output_netcdf['elevation'].coverage_content_type = 'modelResult'
-output_netcdf['elevation'].long_name = 'NIDEM filtered by ITEM confidence (< 0.25), ' \ 
-                                       'bathymetry (> -25 m) and elevation (< 25 m)'
+# dem: assign data and set variable attributes
+output_netcdf['dem'][:] = netcdf_writer.netcdfy_data(nidem_filtered)
+output_netcdf['dem'].valid_range = [-25.0, 25.0]
+output_netcdf['dem'].standard_name = 'height_above_mean_sea_level'
+output_netcdf['dem'].coverage_content_type = 'modelResult'
+output_netcdf['dem'].long_name = 'NIDEM filtered by ITEM confidence (< 0.25), ' \
+                                 'bathymetry (> -25 m) and elevation (< 25 m)'
+
+# dem_unfiltered: assign data and set variable attributes
+output_netcdf['dem_unfiltered'][:] = netcdf_writer.netcdfy_data(nidem_unfiltered)
+output_netcdf['dem_unfiltered'].standard_name = 'height_above_mean_sea_level'
+output_netcdf['dem_unfiltered'].coverage_content_type = 'modelResult'
+output_netcdf['dem_unfiltered'].long_name = 'NIDEM unfiltered data'
+
+# mask: assign data and set variable attributes
+output_netcdf['mask'][:] = netcdf_writer.netcdfy_data(nidem_mask)
+output_netcdf['mask'].valid_range = [1, 3]
+output_netcdf['mask'].coverage_content_type = 'modelResult'
+output_netcdf['mask'].long_name = 'NIDEM mask flagging cells with elevations greater than 25 m (value = 1), ' \
+                                  'less than -25m (value = 2), and ITEM confidence NDWI standard deviation ' \
+                                  'greater than 0.25 (value = 3)'
 
 # Add global attributes
 output_netcdf.title = 'National Intertidal Digital Elevation Model (NIDEM) 25m v 0.1.0'
@@ -617,17 +641,18 @@ output_netcdf.contact = 'clientservices@ga.gov.au'
 output_netcdf.publisher_email = 'earth.observation@ga.gov.au'
 output_netcdf.keywords = 'Tidal, Topography, Landsat, Elevation, Intertidal, MSL, ITEM'
 output_netcdf.summary = "The National Intertidal Digital Elevation Model (NIDEM) is a continental-scale dataset " \
-                "providing a three-dimensional representation of Australia's exposed intertidal zone (the land " \
-                "between the observed highest and lowest tide) at 25 metre resolution. The model is based on the " \
-                "full 30 year archive of Landsat satellite data managed within the Digital Earth Australia (DEA) " \ 
-                "platform that provides spatially and spectrally calibrated earth observation data to enable " \ 
-                "time-series analysis on a per-pixel basis across the entire Australian continent. NIDEM builds " \ 
-                "upon the improved tidal modelling framework of the Intertidal Extents Model v2.0 (ITEM), " \ 
-                "allowing each satellite observation in the 30 year time series to be more accurately associated " \ 
-                "with modelled tide heights from a multi-resolution global tidal model (OTPS TPX08). Using these " \ 
-                "modelled tide heights and a spatially consistent and automated triangulated irregular network " \ 
-                "(TIN) interpolation procedure, each pixel of exposed intertidal extent in ITEM was assigned " \
-                "an absolute elevation in metre units relative to mean sea level."
+                        "providing a three-dimensional representation of Australia's exposed intertidal zone (the " \
+                        "land between the observed highest and lowest tide) at 25 metre resolution. The model is " \
+                        "based on the full 30 year archive of Landsat satellite data managed within the Digital " \
+                        "Earth Australia (DEA) platform that provides spatially and spectrally calibrated earth " \
+                        "observation data to enable time-series analysis on a per-pixel basis across the entire " \
+                        "Australian continent. NIDEM builds upon the improved tidal modelling framework of the " \
+                        "Intertidal Extents Model v2.0 (ITEM), allowing each satellite observation in the 30 year " \
+                        "time series to be more accurately associated with modelled tide heights from a " \
+                        "multi-resolution global tidal model (OTPS TPX08). Using these modelled tide heights and " \
+                        "a spatially consistent and automated triangulated irregular network (TIN) interpolation " \
+                        "procedure, each pixel of exposed intertidal extent in ITEM was assigned an absolute " \
+                        "elevation in metre units relative to mean sea level."
 
 # Close dataset
 output_netcdf.close()
@@ -642,141 +667,3 @@ item_ds = None
 gbr30_reproj = None
 ausbath09_reproj = None
 srtm30_reproj = None
-
-
-
-
-
-
-
-
-
-
-
-
-
-from netCDF4 import Dataset
-f = Dataset("/g/data/r78/rt1527/ITEM_REL_1_118.96_-19.95.nc")
-f
-
-
-
-
-
-
-
-
-
-
-
-
-
-def compliant_netcdf(filename, input_array, x_coords, y_coords, long_name, valid_range=None):
-
-
-
-# import numpy as np
-# from datetime import datetime
-#
-#
-# # Create dataset
-# os.remove('/g/data/r78/rt1527/NIDEM.nc')
-# f_out = Dataset('/g/data/r78/rt1527/NIDEM.nc', 'w', format='NETCDF4')
-#
-# # Add global attributes
-# f_out.date_created = datetime.now().isoformat()
-# f_out.Conventions = 'CF-1.6, ACDD-1.3'
-# f_out.title = 'National Intertidal Digital Elevation Model (NIDEM) 25m v 0.1.0'
-# f_out.institution = 'Commonwealth of Australia (Geoscience Australia)'
-# f_out.product_version = '0.1.0'
-# f_out.license = 'CC BY Attribution 4.0 International License'
-# f_out.acknowledgment = 'Insert list of acknowledgements'
-# f_out.time_coverage_start = '1986-01-01'
-# f_out.time_coverage_end = '2016-10-31'
-# # f_out.geospatial_bounds =
-# f_out.geospatial_bounds_crs = 'EPSG:4326'
-# # f_out.geospatial_lat_min = -20.7385955147
-# # f_out.geospatial_lat_max = -19.4964947991
-# f_out.geospatial_lat_units = 'degrees_north'
-# # f_out.geospatial_lon_min = 118.634108413
-# # f_out.geospatial_lon_max = 119.437004501
-# f_out.geospatial_lon_units = 'degrees_east'
-# f_out.cdm_data_type = 'Grid'
-# f_out.contact = 'clientservices@ga.gov.au'
-# f_out.publisher_email = 'earth.observation@ga.gov.au'
-# f_out.keywords = 'Tidal, Topography, Landsat, Elevation, Intertidal, MSL, ITEM'
-# f_out.summary = "The National Intertidal Digital Elevation Model is a continental-scale dataset providing a " \
-#             "three-dimensional representation of Australia's vast exposed intertidal zone at 25 metre " \
-#             "resolution. This model was based on the full 30 year archive of Landsat satellite data managed " \
-#             "within the Digital Earth Australia (DEA) platform that provides spatially and spectrally " \
-#             "calibrated earth observation data to enable time-series analysis on a per-pixel basis across the " \
-#             "entire Australian continent. The Intertidal Digital Elevation Model builds upon the improved " \
-#             "tidal modelling framework of the Intertidal Extents Model v2.0 (ITEM 2.0), enabling us to more " \
-#             "accurately associate each satellite observation in the 30 year time series with modelled tide " \
-#             "heights from a global ocean tidal model. Using these modelled tide heights and a spatially " \
-#             "consistent and automated triangulated irregular network (TIN) interpolation procedure, we " \
-#             "assigned relative ITEM v2.0 tidal intervals with absolute elevations relative to mean sea level."
-#
-# # Create dimensions
-# f_out.createDimension('y', yrows)
-# f_out.createDimension('x', xcols)
-# f_out.createDimension('time', 1)
-#
-# # Create variables
-# x = f_out.createVariable(varname='x', datatype='f4', dimensions='x')
-# y = f_out.createVariable(varname='y', datatype='f4', dimensions='y')
-# elevation = f_out.createVariable(varname='elevation', datatype='f4', dimensions=('time', 'y', 'x'), fill_value=-9999.)
-# time = f_out.createVariable(varname='time', datatype='i4', dimensions='time')
-# crs = f_out.createVariable(varname='crs', datatype='i4', dimensions=())
-#
-# # Assign values to created variables
-# x[:] = np.linspace(upleft_x + 12.5, bottomright_x - 12.5, num=xcols)
-# y[:] = np.linspace(upleft_y - 12.5, bottomright_y + 12.5, num=yrows)
-# time[:] = 1.47795840e+09
-# elevation[0, :, :] = nidem_filtered
-#
-# # Set attributes
-# crs.grid_mapping_name = 'albers_conical_equal_area'
-# crs.standard_parallel = [-18., -36.]
-# crs.longitude_of_central_meridian = 132.0
-# crs.latitude_of_projection_origin = 0.0
-# crs.false_easting = 0.0
-# crs.false_northing = 0.0
-# crs.long_name = 'GDA94 / Australian Albers'
-# crs.semi_major_axis = 6378137.0
-# crs.semi_minor_axis = 6356752.31414
-# crs.inverse_flattening = 298.257222101
-# crs.spatial_ref='PROJCS["GDA94 / Australian Albers",GEOGCS["GDA94",DATUM["Geocentric_Datum_of_Australia_1994",SPHEROID["GRS 1980",6378137,298.257222101,AUTHORITY["EPSG","7019"]],TOWGS84[0,0,0,0,0,0,0],AUTHORITY["EPSG","6283"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4283"]],PROJECTION["Albers_Conic_Equal_Area"],PARAMETER["standard_parallel_1",-18],PARAMETER["standard_parallel_2",-36],PARAMETER["latitude_of_center",0],PARAMETER["longitude_of_center",132],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],AUTHORITY["EPSG","3577"]]'
-# crs.crs_wkt='PROJCS["GDA94 / Australian Albers",GEOGCS["GDA94",DATUM["Geocentric_Datum_of_Australia_1994",SPHEROID["GRS 1980",6378137,298.257222101,AUTHORITY["EPSG","7019"]],TOWGS84[0,0,0,0,0,0,0],AUTHORITY["EPSG","6283"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4283"]],PROJECTION["Albers_Conic_Equal_Area"],PARAMETER["standard_parallel_1",-18],PARAMETER["standard_parallel_2",-36],PARAMETER["latitude_of_center",0],PARAMETER["longitude_of_center",132],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],AUTHORITY["EPSG","3577"]]'
-# crs.GeoTransform = geotrans
-#
-# # Set attributes
-# x.standard_name = 'projection_x_coordinate'
-# x.long_name = 'x coordinate of projection'
-# x.units = 'meters'
-#
-# y.standard_name = 'projection_y_coordinate'
-# y.long_name = 'y coordinate of projection'
-# y.units = 'meters'
-#
-# time.axis = 'T'
-# time.calendar = 'standard'
-# time.long_name = 'Time, unix time-stamp'
-# time.standard_name = 'time'
-# time.units = 'seconds since 1970-01-01 00:00:00'
-#
-# elevation.standard_name = 'height_above_mean_sea_level'
-# elevation.long_name = 'National Intertidal Digital Elevation Model (NIDEM)'
-# elevation.grid_mapping = 'crs'
-# elevation.coverage_content_type = 'modelResult'
-# elevation.valid_range = [-25.0, 25.0]
-# elevation.units = 'meters'
-#
-# # Close file
-# f_out.close()
-
-
-
-
-
-
