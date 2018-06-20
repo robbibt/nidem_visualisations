@@ -293,7 +293,7 @@ srtm30_raster = '/g/data/rr1/Elevation/1secSRTM_DEMs_v1.0/DEM/Mosaic/dem1sv1_0'
 manually_included_shp = 'raw_data/manually_included.shp'
 
 # Set ITEM polygon for analysis
-polygon_ID = 96
+polygon_ID = 209
 # todo: resolve issues with # 18, 131, 162, 172, 204, 220, 226, 238, 240, 301)
 
 # Print run details
@@ -381,8 +381,8 @@ offset_array[~dilated_mask] = np.nan
 #    1 Second Digital Elevation Model data (http://pid.geoscience.gov.au/dataset/ga/69769).
 # 2. Deep water pixels with bathymetry values less than -25 m below MSL. This mask is computed by identifying
 #    any pixels that are < -25 m in both the national Australian Bathymetry and Topography Grid
-#    (http://pid.geoscience.gov.au/dataset/ga/67703) and the  GBR30 bathymetry
-#    (http://pid.geoscience.gov.au/dataset/ga/115066) datasets.
+#    (http://pid.geoscience.gov.au/dataset/ga/67703) and the  GBR30 High-resolution depth model for the Great
+#    Barrier Reef (http://pid.geoscience.gov.au/dataset/ga/115066) datasets.
 # 3. Pixels with high ITEM confidence NDWI standard deviation (i.e. areas where inundation patterns are not driven
 #    by tidal influences). This mask is computed using ITEM v2.0 confidence layer data from DEA.
 # 
@@ -626,7 +626,7 @@ output_netcdf['mask'][:] = netcdf_writer.netcdfy_data(nidem_mask)
 output_netcdf['mask'].valid_range = [1, 3]
 output_netcdf['mask'].coverage_content_type = 'modelResult'
 output_netcdf['mask'].long_name = 'NIDEM mask flagging cells with elevations greater than 25 m (value = 1), ' \
-                                  'less than -25m (value = 2), and ITEM confidence NDWI standard deviation ' \
+                                  'less than -25 m (value = 2), and ITEM confidence NDWI standard deviation ' \
                                   'greater than 0.25 (value = 3)'
 
 # Add global attributes
@@ -639,6 +639,7 @@ output_netcdf.time_coverage_end = '2016-10-31'
 output_netcdf.cdm_data_type = 'Grid'
 output_netcdf.contact = 'clientservices@ga.gov.au'
 output_netcdf.publisher_email = 'earth.observation@ga.gov.au'
+output_netcdf.source = 'OTPS TPX08 Atlas'
 output_netcdf.keywords = 'Tidal, Topography, Landsat, Elevation, Intertidal, MSL, ITEM'
 output_netcdf.summary = "The National Intertidal Digital Elevation Model (NIDEM) is a continental-scale dataset " \
                         "providing a three-dimensional representation of Australia's exposed intertidal zone (the " \
