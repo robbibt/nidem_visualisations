@@ -293,7 +293,7 @@ srtm30_raster = '/g/data/rr1/Elevation/1secSRTM_DEMs_v1.0/DEM/Mosaic/dem1sv1_0'
 manually_included_shp = 'raw_data/manually_included.shp'
 
 # Set ITEM polygon for analysis
-polygon_ID = 209
+polygon_ID = 66
 # todo: resolve issues with # 18, 131, 162, 172, 204, 220, 226, 238, 240, 301)
 
 # Print run details
@@ -322,7 +322,7 @@ interval_offsets_df = pd.DataFrame({'item_interval': range(1, 10), 'offset': int
 # Compute linear model and calculate ITEM offsets at the boundary of each ITEM interval to ensure that extracted
 # contours are placed precisely on ITEM interval boundaries.
 m, b = np.polyfit(interval_offsets_df['item_interval'], interval_offsets_df['offset'], 1)
-interval_boundaries = np.arange(0.5, 10.5, 1.0)
+interval_boundaries = np.arange(0.5, 9.5, 1.0)
 contour_offsets = (m * interval_boundaries + b)
 
 # Compute ITEM offset interval used to fill lowest class of ITEM relative layer
