@@ -282,12 +282,14 @@ def reproject_to_template(input_raster, template_raster, output_raster, resoluti
 def main(argv=None):
 
     if argv is None:
+
         argv = sys.argv
         print(sys.argv)
 
-    # if no user arguments provided
+    # If no user arguments provided
     if len(argv) < 2:
-        str_usage = "You must specify a polygon id Usage: python NIDEM_generation.py polygon id \n"
+
+        str_usage = "You must specify a polygon ID"
         print(str_usage)
         sys.exit()
 
@@ -307,7 +309,6 @@ def main(argv=None):
 
     # Set ITEM polygon for analysis
     polygon_ID = int(argv[1])
-    # todo: resolve issues with # 18, 131, 162, 172, 204, 220, 226, 238, 240, 301)
 
     # Print run details
     print('Processing polygon {} from {}'.format(polygon_ID, item_offset_path))
@@ -350,14 +351,18 @@ def main(argv=None):
     # Imports ITEM REL raster for given polygon, and use a lookup index array of offset values to classify into a new
     # array of evenly-spaced ITEM offset values (in metre units relative to sea level) suitable for contour extraction.
 
-    # Import raster and extract shape, projection info and geotransform data
+    # Import raster
     item_filename = glob.glob('{}/ITEM_REL_{}_*.tif'.format(item_relative_path, polygon_ID))[0]
     item_ds = gdal.Open(item_filename)
     item_array = item_ds.GetRasterBand(1).ReadAsArray()
+
+    # Extract shape, projection info and geotransform data
     yrows, xcols = item_array.shape
     prj = item_ds.GetProjection()
     geotrans = item_ds.GetGeoTransform()
     upleft_x, x_size, x_rotation, upleft_y, y_rotation, y_size = geotrans
+    bottomright_x = upleft_x + (x_size * xcols)
+    bottomright_y = upleft_y + (y_size * yrows)
 
     # Assign nodata -6666 values to new class 10 prior to lookup classification
     item_array[item_array == -6666] = 10
@@ -382,7 +387,6 @@ def main(argv=None):
 
     # Since we only want to fill pixels on the boundary of NIDEM tiles, set pixels outside the dilated area back to NaN:
     offset_array[~dilated_mask] = np.nan
-
 
     ##########################################################
     # Compute ITEM confidence and elevation/bathymetry masks #
@@ -457,7 +461,6 @@ def main(argv=None):
     # Set manually included pixels to -9999 to prevent masking
     nidem_mask[manually_included] = -9999
 
-
     ####################
     # Extract contours #
     ####################
@@ -497,7 +500,6 @@ def main(argv=None):
 
         print('Contour creation failed')
 
-
     # Export contours to line shapefile to assist in evaluating DEMs
     schema = {'geometry':  'MultiLineString',
               'properties': {'elevation': 'float:9.2'}}
@@ -521,13 +523,6 @@ def main(argv=None):
             output.write({'properties': {'elevation': elevation_value},
                           'geometry': mapping(contour_multilinestring)})
 
-    # Chain and concatenate all arrays nested within array lists (i.e. individual collections of same
-    # elevation contours) and dictionary entries (i.e. collections of all same-elevation contours)
-    all_contours = np.concatenate(list(itertools.chain.from_iterable(contour_dict.values())))
-    points = all_contours[:, 0:2]
-    values = all_contours[:, 2]
-
-
     #######################################################################
     # Interpolate contours using TIN/Delaunay triangulation interpolation #
     #######################################################################
@@ -539,26 +534,38 @@ def main(argv=None):
     # Because the lowest and highest ITEM intervals cannot be correctly interpolated as they have no lower or upper
     # bounds, the filtered NIDEM is constrained to valid intertidal terrain (ITEM intervals 1-8).
 
-    # Calculate bottom right bounds of ITEM layer
-    bottomright_x = upleft_x + (x_size * xcols)
-    bottomright_y = upleft_y + (y_size * yrows)
+    # Chain and concatenate all arrays nested within array lists (i.e. individual collections of same
+    # elevation contours) and dictionary entries (i.e. collections of all same-elevation contours)
 
-    # Create interpolation grid (from-to-by values in metre units)
-    grid_y, grid_x = np.mgrid[upleft_y:bottomright_y:1j * yrows, upleft_x:bottomright_x:1j * xcols]
+    # If contours include valid data, proceed with interpolation
+    try:
 
-    # Interpolate between points onto grid. This uses the 'linear' method from
-    # scipy.interpolate.griddata, which computes a TIN/Delaunay triangulation of the input
-    # data with Qhull and performs linear barycentric interpolation on each triangle
-    print('Interpolating data for polygon {}'.format(polygon_ID))
-    interpolated_array = scipy.interpolate.griddata(points, values, (grid_y, grid_x), method='linear')
+        # Extract combined lists of xy points and z-values from all contours
+        all_contours = np.concatenate(list(itertools.chain.from_iterable(contour_dict.values())))
+        points = all_contours[:, 0:2]
+        values = all_contours[:, 2]
 
-    # Identify valid intertidal area by selecting pixels between the lowest and highest ITEM intervals
-    valid_intertidal_extent = np.where((item_array > 0) & (item_array < 9), 1, 0)
+        # Calculate bounds of ITEM layer to create interpolation grid (from-to-by values in metre units)
+        grid_y, grid_x = np.mgrid[upleft_y:bottomright_y:1j * yrows, upleft_x:bottomright_x:1j * xcols]
 
-    # Create filtered and unfiltered versions of NIDEM
-    nidem_unfiltered = np.where(valid_intertidal_extent, interpolated_array, -9999).astype(np.float32)
-    nidem_filtered = np.where(nidem_mask > 0, -9999, nidem_unfiltered).astype(np.float32)
+        # Interpolate between points onto grid. This uses the 'linear' method from
+        # scipy.interpolate.griddata, which computes a TIN/Delaunay triangulation of the input
+        # data with Qhull and performs linear barycentric interpolation on each triangle
+        print('Interpolating data for polygon {}'.format(polygon_ID))
+        interpolated_array = scipy.interpolate.griddata(points, values, (grid_y, grid_x), method='linear')
 
+        # Identify valid intertidal area by selecting pixels between the lowest and highest ITEM intervals
+        valid_intertidal_extent = np.where((item_array > 0) & (item_array < 9), 1, 0)
+
+        # Create filtered and unfiltered versions of NIDEM
+        nidem_unfiltered = np.where(valid_intertidal_extent, interpolated_array, -9999).astype(np.float32)
+        nidem_filtered = np.where(nidem_mask > 0, -9999, nidem_unfiltered).astype(np.float32)
+
+    except ValueError:
+
+        # If contours contain no valid data, create empty arrays
+        nidem_unfiltered = np.full((yrows, xcols), -9999)
+        nidem_filtered = np.full((yrows, xcols), -9999)
 
     #######################
     # Export geoTIFF data #
@@ -566,14 +573,6 @@ def main(argv=None):
 
     # NIDEM is exported as two DEMs: an unfiltered version, and a version filtered to remove > 25 m or < -25 m terrain
     # and pixels with high ITEM confidence NDWI standard deviation.
-
-    # Export NIDEM mask as a GeoTIFF
-    print('Exporting NIDEM mask for polygon {}'.format(polygon_ID))
-    array_to_geotiff(fname='output_data/geotiff/mask/NIDEM_mask_{}.tif'.format(polygon_ID),
-                     data=nidem_mask.astype(int),
-                     geo_transform=geotrans,
-                     projection=prj,
-                     nodata_val=-9999)
 
     # Export unfiltered NIDEM as a GeoTIFF
     print('Exporting unfiltered NIDEM for polygon {}'.format(polygon_ID))
@@ -587,6 +586,14 @@ def main(argv=None):
     print('Exporting filtered NIDEM for polygon {}'.format(polygon_ID))
     array_to_geotiff(fname='output_data/geotiff/dem/NIDEM_dem_{}.tif'.format(polygon_ID),
                      data=nidem_filtered,
+                     geo_transform=geotrans,
+                     projection=prj,
+                     nodata_val=-9999)
+
+    # Export NIDEM mask as a GeoTIFF
+    print('Exporting NIDEM mask for polygon {}'.format(polygon_ID))
+    array_to_geotiff(fname='output_data/geotiff/mask/NIDEM_mask_{}.tif'.format(polygon_ID),
+                     data=nidem_mask.astype(int),
                      geo_transform=geotrans,
                      projection=prj,
                      nodata_val=-9999)
@@ -654,19 +661,20 @@ def main(argv=None):
     output_netcdf.publisher_email = 'earth.observation@ga.gov.au'
     output_netcdf.source = 'OTPS TPX08 Atlas'
     output_netcdf.keywords = 'Tidal, Topography, Landsat, Elevation, Intertidal, MSL, ITEM, NIDEM, DEM, Coastal'
-    output_netcdf.summary = "The National Intertidal Digital Elevation Model (NIDEM) is a continental-scale dataset " \
-                            "providing a three-dimensional representation of Australia's exposed intertidal zone (the " \
-                            "land between the observed highest and lowest tide) at 25 metre resolution. The model is " \
-                            "based on the full 30 year archive of Landsat satellite data managed within the Digital " \
-                            "Earth Australia (DEA) platform that provides spatially and spectrally calibrated earth " \
-                            "observation data to enable time-series analysis on a per-pixel basis across the entire " \
-                            "Australian continent. NIDEM builds upon the improved tidal modelling framework of the " \
-                            "Intertidal Extents Model v2.0 (ITEM), allowing each satellite observation in the 30 year " \
-                            "time series to be more accurately associated with modelled tide heights from a " \
-                            "multi-resolution global tidal model (OTPS TPX08). Using these modelled tide heights and " \
-                            "a spatially consistent and automated triangulated irregular network (TIN) interpolation " \
-                            "procedure, each pixel of exposed intertidal extent in ITEM was assigned an absolute " \
-                            "elevation in metre units relative to mean sea level."
+    output_netcdf.summary = "The National Intertidal Digital Elevation Model (NIDEM) is a continental-scale " \
+                            "dataset providing a three-dimensional representation of Australia's exposed " \
+                            "intertidal zone (the land between the observed highest and lowest tide) at 25 metre " \
+                            "resolution. The model is based on the full 30 year archive of Landsat satellite data " \
+                            "managed within the Digital Earth Australia (DEA) platform that provides spatially " \
+                            "and spectrally calibrated earth observation data to enable time-series analysis on a " \
+                            "per-pixel basis across the entire Australian continent. NIDEM builds upon the " \
+                            "improved tidal modelling framework of the Intertidal Extents Model v2.0 (ITEM), " \
+                            "allowing each satellite observation in the 30 year time series to be more accurately " \
+                            "associated with modelled tide heights from a multi-resolution global tidal model " \
+                            "(OTPS TPX08). Using these modelled tide heights and a spatially consistent and " \
+                            "automated triangulated irregular network (TIN) interpolation procedure, each pixel " \
+                            "of exposed intertidal extent in ITEM was assigned an absolute elevation in metre " \
+                            "units relative to mean sea level."
 
     # Close dataset
     output_netcdf.close()

@@ -1,3 +1,5 @@
+*.qgs
+*.qgs~
 *.jpg
 *.png
 *.shx
@@ -9,5 +11,10 @@
 *.tif
 *.xml
 *.aux.xml
+*.ovr
+*.nc
+*.vrt
+*.vrt.ovr
+*.vrt.ovr.aux.xml
 *.gitignore~
 *.ipynb_checkpoints/
