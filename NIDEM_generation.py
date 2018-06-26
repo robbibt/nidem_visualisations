@@ -313,7 +313,6 @@ def main(argv=None):
     # Print run details
     print('Processing polygon {} from {}'.format(polygon_ID, item_offset_path))
 
-
     ###########################################
     # ITEM interval boundary value extraction #
     ###########################################
@@ -342,7 +341,6 @@ def main(argv=None):
     # Compute ITEM offset interval used to fill lowest class of ITEM relative layer
     # (not used for interpolation, but ensures lowest contour is placed exactly on interval boundary)
     interval_zero = (m * 0 + b)
-
 
     #########################################
     # Import and prepare ITEM offset raster #
@@ -598,17 +596,21 @@ def main(argv=None):
                      projection=prj,
                      nodata_val=-9999)
 
-
     ######################
     # Export NetCDF data #
     ######################
+
+    # If netcdf file already exists, delete it
+    filename_netcdf = 'output_data/netcdf/NIDEM_{}.nc'.format(polygon_ID)
+
+    if os.path.exists(filename_netcdf):
+        os.remove(filename_netcdf)
 
     # Compute coords
     x_coords = netcdf_writer.netcdfy_coord(np.linspace(upleft_x + 12.5, bottomright_x - 12.5, num=xcols))
     y_coords = netcdf_writer.netcdfy_coord(np.linspace(upleft_y - 12.5, bottomright_y + 12.5, num=yrows))
 
     # Create new dataset
-    filename_netcdf = 'output_data/netcdf/NIDEM_{}.nc'.format(polygon_ID)
     output_netcdf = create_netcdf_storage_unit(filename=filename_netcdf,
                                                crs=CRS('EPSG:3577'),
                                                coordinates={'x': Coordinate(x_coords, 'metres'),
@@ -678,7 +680,6 @@ def main(argv=None):
 
     # Close dataset
     output_netcdf.close()
-
 
     ###############
     # Close files #
