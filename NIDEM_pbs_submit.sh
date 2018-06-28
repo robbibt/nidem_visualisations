@@ -20,12 +20,20 @@
 # for polygon in 25 64 91 102 153 236 282
 
 # # Very high memory and long wall time polygons, mem=64GB, walltime=4:00:00, jobfs=2GB
-# for polygon in 8 178 220 301
+# for polygon in 8 220 301
+
+# # Extremely long wall time, mem=16GB, walltime=48:00:00, jobfs=2GB
+# for polygon in 178
+
+# Test
+for polygon in 66 235
 
 do
 
     PBS="#!/bin/bash\n\
     #PBS -N NIDEM_${polygon}\n\
+    #PBS -o PBS_output/NIDEM_${polygon}.out\n\
+	#PBS -e PBS_output/NIDEM_${polygon}.err\n\
 	#PBS -P r78\n\
 	#PBS -q express\n\
 	#PBS -l walltime=0:30:00\n\
