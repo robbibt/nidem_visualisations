@@ -98,7 +98,7 @@ name = 'Kaurumba'
 os.chdir('/g/data/r78/rt1527/nidem')
 
 # Dict of study areas and files to process
-study_areas_df = pd.read_csv('study_areas.csv', index_col=0)
+study_areas_df = pd.read_csv('lidar_study_areas.csv', index_col=0)
 study_areas = study_areas_df.to_dict('index')
 point_files = glob.glob("raw_data/validation/*{}*.csv".format(name))
 

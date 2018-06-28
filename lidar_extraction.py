@@ -14,7 +14,7 @@ name = 'Kaurumba'
 os.chdir('C:/Users/u69654/Projects/nidem-GA/')
 
 # Set up output location to read in setup parameters from file
-study_areas_df = pd.read_csv('study_areas.csv', index_col=0)
+study_areas_df = pd.read_csv('lidar_study_areas.csv', index_col=0)
 study_areas = study_areas_df.to_dict('index')
 input_location = study_areas[name]['input_loc']
 
