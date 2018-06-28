@@ -1,14 +1,14 @@
 # National Intertidal Digital Elevation Model (NIDEM)
 
-Date: June 2018
+**Date:** June 2018
 
-Author: Robbi Bishop-Taylor, Steven Sagar, Leo Lymburner
+**Author:** Robbi Bishop-Taylor, Steven Sagar, Leo Lymburner
 
 ## Description
 
 This script generates Geoscience Australia's (GA) National Intertidal Digital Elevation Model (NIDEM) datasets, which provide continuous elevation data for Australia's intertidal zone. It initially imports layers from the DEA Intertidal Extents Model (ITEM v2.0) and median tidal elevations for each tidal interval, computes elevations at interval boundaries, extracts contours around each tidal interval, and then interpolates between these contours using TIN/Delaunay triangulation linear interpolation. This interpolation method preserves the tidal interval boundaries of ITEM v2.0.
 
-## To generate NIDEM
+## Running NIDEM
 
 To generate NIDEM datasets:
 
