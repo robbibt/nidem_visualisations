@@ -7,7 +7,7 @@
 # Intertidal Extents Model (ITEM v2.0) and median tidal elevations for each tidal interval, computes elevations at
 # interval boundaries, extracts contours around each tidal interval, and then interpolates between these contours
 # using TIN/Delaunay triangulation linear interpolation. This interpolation method preserves the tidal interval
-# boundaries of ITEM v2.0. The notebook produces several output files:
+# boundaries of ITEM v2.0. NIDEM consists of several output files:
 # 
 # 1. Contour line shapefiles (`NIDEM_contours_XXX.shp`) used for the interpolation. These datasets facilitate
 #    re-analysis by allowing DEMs to be generated using alternative interpolation methods.
@@ -19,7 +19,7 @@
 #    been cleaned by masking out cells included in the mask layers. This is the primary output product, and is
 #    expected to be the default product used for most applications.
 #
-# The mask, unfiltered and filtered NIDEM products are also exported as a combined NetCDF dataset ('NIDEM_XXX.nc').
+# The mask, unfiltered and filtered NIDEM products are also exported as a combined NetCDF dataset (`NIDEM_XXX.nc`).
 # 
 # Date: June 2018
 # Author: Robbi Bishop-Taylor, Steven Sagar, Leo Lymburner
