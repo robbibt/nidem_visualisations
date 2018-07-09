@@ -34,6 +34,7 @@ import os
 import glob
 import itertools
 import fiona
+import affine
 import numpy as np
 import pandas as pd
 import collections
@@ -42,7 +43,6 @@ import skimage.measure
 import configparser
 from osgeo import gdal
 from scipy import ndimage as nd
-from fiona.crs import from_epsg
 from shapely.geometry import LineString, MultiLineString, mapping
 from datacube.model import Variable
 from datacube.utils.geometry import Coordinate
@@ -246,53 +246,11 @@ def main(argv=None):
     # assigns these contours with previously calculated elevation values. Contours are exported as line shapefiles
     # to assist in subsequent assessment of output DEMs.
 
-    # Output dict to hold contours for each offset
-    contour_dict = collections.OrderedDict()
-
-    for contour_offset in contour_offsets:
-
-        # Extract contours from array
-        contours = skimage.measure.find_contours(offset_array, contour_offset)
-        print('Extracting contour {}'.format(contour_offset))
-
-        # Iterate through each contour feature, remove NAs and fix coordinates
-        contour_list = list()
-        for contour in contours:
-
-            # Convert index coordinates to spatial coordinates in-place
-            contour[:, 0] = contour[:, 0] * float(y_size) + upleft_y + (float(y_size) / 2)
-            contour[:, 1] = contour[:, 1] * float(x_size) + upleft_x + (float(x_size) / 2)
-            contour = np.insert(contour, 2, contour_offset, axis=1)
-
-            # Remove contour points with NAs
-            contour = contour[~np.isnan(contour).any(axis=1)]
-            contour_list.append(contour)
-
-        # Add list of contour arrays to dict
-        contour_dict[contour_offset] = contour_list
-
-    # Export contours to line shapefile to assist in evaluating DEMs
-    schema = {'geometry':  'MultiLineString',
-              'properties': {'elevation': 'float:9.2'}}
-
-    with fiona.open('output_data/contour/NIDEM_contours_{}.shp'.format(polygon_id), 'w',
-                    crs=from_epsg(3577),
-                    driver='ESRI Shapefile',
-                    schema=schema) as output:
-
-        for elevation_value, contour_list in contour_dict.items():
-
-            # Filter out contours with less than two points (i.e. non-lines)
-            contour_list = [x for x in contour_list if len(x) > 1]
-
-            # Create multiline string by first flipping coordinates then creating list of linestrings
-            contour_linestrings = [LineString([(x, y) for (y, x, z) in contour_array])
-                                   for contour_array in contour_list]
-            contour_multilinestring = MultiLineString(contour_linestrings)
-
-            # Write output shapefile to file with elevation field
-            output.write({'properties': {'elevation': elevation_value},
-                          'geometry': mapping(contour_multilinestring)})
+    contour_dict = contour_extract(contour_vals=contour_offsets,
+                                   ds_array=offset_array,
+                                   ds_crs='EPSG:3577',
+                                   ds_geotrans=geotrans,
+                                   output_shp='output_data/contour/NIDEM_contours_{}.shp'.format(polygon_id))
 
     #######################################################################
     # Interpolate contours using TIN/Delaunay triangulation interpolation #
@@ -347,7 +305,7 @@ def main(argv=None):
 
     # Export unfiltered NIDEM as a GeoTIFF
     print('Exporting unfiltered NIDEM for polygon {}'.format(polygon_id))
-    array_to_geotiff(fname='output_data/geotiff/dem_unfiltered/NIDEM_unfiltered_{}.tif'.format(polygon_id),
+    array_to_geotiff(fname='output_data/geotiff/dem_unfiltered/NIDEM_unfiltered_{}_2.tif'.format(polygon_id),
                      data=nidem_unfiltered,
                      geo_transform=geotrans,
                      projection=prj,
@@ -678,6 +636,101 @@ def reproject_to_template(input_raster, template_raster, output_raster, resoluti
 
     print("Reprojected raster exported to {}".format(output_raster))
     return output_ds
+
+
+def contour_extract(contour_vals, ds_array, ds_crs, ds_geotrans, output_shp):
+
+    """
+    Uses `skimage.measure.find_contours` to rapidly extract contour boundaries from
+    a two-dimensional array. Contours are extracted as a dictionary of xy points for each
+    contour z-value, and a line shapefile with a feature per contour z-value.
+
+    Last modified: July 2018
+    Author: Robbi Bishop-Taylor
+
+    :param contour_vals:
+        A list of numeric contour values to extract from the array.
+
+    :param ds_array:
+        A two-dimensional numpy array from which contours are extracted
+
+    :param ds_crs:
+        Either a EPSG string giving the coordinate system of the array (e.g. 'EPSG:3577'), or a crs
+        object (e.g. from an xarray dataset: xarray_ds.geobox.crs)
+
+    :param ds_geotrans:
+        Either a gdal-derived geotransform object (e.g. gdal_ds.GetGeoTransform()), or an
+        affine object from a rasterio or xarray object (e.g. 'xarray_ds.geobox.affine')
+
+    :param output_shp:
+        A string giving the path and filename of the output shapefile
+
+    :return:
+        A dictionary with contour z-values/elevations as the key, and arrays of xyz points as values
+
+    """
+
+    ####################
+    # Extract contours #
+    ####################
+
+    # Obtain pixel size/location from either rasterio/xarray affine or gdal geotransform
+    if type(ds_geotrans) == affine.Affine:
+        x_size, _, upleft_x, _, y_size, upleft_y = ds_geotrans[:6]
+    else:
+        upleft_x, x_size, _, upleft_y, _, y_size = ds_geotrans
+
+    # Output dict to hold contours for each offset
+    contour_dict = collections.OrderedDict()
+
+    for contour_val in contour_vals:
+
+        # Extract contours from array
+        print('Extracting contour {}'.format(contour_val))
+        contours = skimage.measure.find_contours(ds_array, contour_val)
+
+        # Iterate through each contour feature, remove NAs and return spatial xyz coordinates
+        contour_list = list()
+
+        for contour in contours:
+            # Convert index coordinates to spatial coordinates in-place
+            contour[:, 0] = contour[:, 0] * float(y_size) + upleft_y + (float(y_size) / 2)
+            contour[:, 1] = contour[:, 1] * float(x_size) + upleft_x + (float(x_size) / 2)
+
+            # Create array of xyz points by inserting contour value
+            contour = np.insert(contour, 2, contour_val, axis=1)
+
+            # Remove contour points with NAs
+            contour = contour[~np.isnan(contour).any(axis=1)]
+            contour_list.append(contour)
+
+        # Add list of contour arrays to dict
+        contour_dict[contour_val] = contour_list
+
+    # Export contours to line shapefile to assist in evaluating DEMs
+    schema = {'geometry': 'MultiLineString',
+              'properties': {'elevation': 'float:9.2'}}
+
+    with fiona.open(output_shp, 'w',
+                    crs={'init': str(ds_crs), 'no_defs': True},
+                    driver='ESRI Shapefile',
+                    schema=schema) as output:
+
+        print('Exporting shapefile to {}'.format(output_shp))
+        for elevation_value, contour_list in contour_dict.items():
+            # Filter out contours with less than two points (i.e. non-lines)
+            contour_list = [x for x in contour_list if len(x) > 1]
+
+            # Create multiline string by first flipping coordinates then creating list of linestrings
+            contour_linestrings = [LineString([(x, y) for (y, x, z) in contour_array])
+                                   for contour_array in contour_list]
+            contour_multilinestring = MultiLineString(contour_linestrings)
+
+            # Write output shapefile to file with elevation field
+            output.write({'properties': {'elevation': elevation_value},
+                          'geometry': mapping(contour_multilinestring)})
+
+    return contour_dict
 
 
 if __name__ == "__main__":
