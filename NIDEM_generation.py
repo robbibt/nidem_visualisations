@@ -36,7 +36,6 @@ import itertools
 import fiona
 import affine
 import numpy as np
-import pandas as pd
 import collections
 import scipy.interpolate 
 import skimage.measure
@@ -84,9 +83,10 @@ def main(argv=None):
     item_conf_path = config['ITEM inputs']['item_conf_path']
 
     # Set paths to elevation, bathymetry and shapefile datasets used to create NIDEM mask
-    gbr30_raster = config['Masking inputs']['gbr30_raster']
-    ausbath09_raster = config['Masking inputs']['ausbath09_raster']
     srtm30_raster = config['Masking inputs']['srtm30_raster']
+    ausbath09_raster = config['Masking inputs']['ausbath09_raster']
+    gbr30_raster = config['Masking inputs']['gbr30_raster']
+    nthaus30_raster = config['Masking inputs']['nthaus30_raster']
     manually_included_shp = config['Masking inputs']['manually_included_shp']
 
     # Print run details
@@ -167,9 +167,10 @@ def main(argv=None):
     # 1. Non-coastal pixels with elevations greater than 25 m above MSL. This mask is computed using SRTM-derived
     #    1 Second Digital Elevation Model data (http://pid.geoscience.gov.au/dataset/ga/69769).
     # 2. Deep water pixels with bathymetry values less than -25 m below MSL. This mask is computed by identifying
-    #    any pixels that are < -25 m in both the national Australian Bathymetry and Topography Grid
-    #    (http://pid.geoscience.gov.au/dataset/ga/67703) and the  GBR30 High-resolution depth model for the Great
-    #    Barrier Reef (http://pid.geoscience.gov.au/dataset/ga/115066) datasets.
+    #    any pixels that are < -25 m in all of the national Australian Bathymetry and Topography Grid
+    #    (http://pid.geoscience.gov.au/dataset/ga/67703), gbr30 High-resolution depth model for the Great
+    #    Barrier Reef (http://pid.geoscience.gov.au/dataset/ga/115066) and nthaus30 High-resolution depth model
+    #    for Northern Australia (http://pid.geoscience.gov.au/dataset/ga/121620).
     # 3. Pixels with high ITEM confidence NDWI standard deviation (i.e. areas where inundation patterns are not driven
     #    by tidal influences). This mask is computed using ITEM v2.0 confidence layer data from DEA.
     #
@@ -192,14 +193,14 @@ def main(argv=None):
                                              output_raster='scratch/temp.tif',
                                              nodata_val=-9999)
 
-    # Reproject GBR30 bathymetry to cell size and projection of NIDEM
+    # Reproject gbr30 bathymetry to cell size and projection of NIDEM
     gbr30_reproj = reproject_to_template(input_raster=gbr30_raster,
                                          template_raster=item_filename,
                                          output_raster='scratch/temp.tif',
                                          nodata_val=-9999)
 
-    # Reproject SRTM-derived 1 Second DEM to cell size and projection of NIDEM
-    nthaus30_reproj = reproject_to_template(input_raster='scratch/nthaus30.vrt',
+    # Reproject nthaus30 bathymetry to cell size and projection of NIDEM
+    nthaus30_reproj = reproject_to_template(input_raster=nthaus30_raster,
                                             template_raster=item_filename,
                                             output_raster='scratch/temp.tif',
                                             nodata_val=-9999)
@@ -220,7 +221,7 @@ def main(argv=None):
 
     # Convert arrays to boolean masks:
     #  For elevation: any elevations > 25 m in SRTM 30m DEM
-    #  For bathymetry: any depths < -25 m in both GBR30 and Ausbath09 bathymetry
+    #  For bathymetry: any depths < -25 m in GBR30, nthaus30 AND Ausbath09 bathymetry
     #  For ITEM confidence: any cells with NDWI STD > 0.25
     elev_mask = srtm30_array > 25
     bathy_mask = (ausbath09_array < -25) & (gbr30_array < -25) & (nthaus30_array < -25)
