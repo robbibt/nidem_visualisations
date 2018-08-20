@@ -94,26 +94,20 @@ def gps_sotw_utc(gps_sotw, reference_date, leap_seconds=10):
 #########
 
 # User input to read in setup parameters from file
-name = 'Kaurumba'
 os.chdir('/g/data/r78/rt1527/nidem')
 
 # Dict of study areas and files to process
 study_areas_df = pd.read_csv('lidar_study_areas.csv', index_col=0)
 study_areas = study_areas_df.to_dict('index')
-point_files = glob.glob("raw_data/validation/*{}*.csv".format(name))
 
-# List of ref dates
-ref_dates = [i.to_pydatetime() for i in pd.date_range(start=dt.datetime(2010, 5, 27, 0, 0),
-                                                      end=dt.datetime(2010, 6, 19, 0, 0),
-                                                      freq="7D")]
-
-for i, ref_date in enumerate(ref_dates):
+for name in ['Gladstone', 'Whitsunday', 'Rockhampton', 'Isaac', 'Mackay', 'Fraser', 'Kaurumba']:
 
     ###############
     # Import data #
     ###############
 
     # Iterate through each file and merge list of dataframes into single dataframe
+    point_files = glob.glob('raw_data/validation/*{}*.csv'.format(name))
     df_list = [pd.read_csv(input_file, sep=",") for input_file in point_files]
     points_df = pd.concat(df_list)
 
@@ -123,7 +117,7 @@ for i, ref_date in enumerate(ref_dates):
     ################
 
     # Conert GPS time to datetime, and round to nearest minute to reduce calls to tide_predict
-    ref_date = dt.datetime.strptime(study_areas[name]['ref_date'], "%Y-%m-%d %H:%M:%S")
+    ref_date = dt.datetime.strptime(study_areas[name]['ref_date'], '%Y-%m-%d %H:%M:%S')
     points_df['point_time'] = points_df['point_time'].apply(lambda ts: gps_sotw_utc(ts, ref_date))
     points_df['point_timeagg'] = points_df['point_time'].dt.round('1min')  # 30min
 
@@ -145,12 +139,12 @@ for i, ref_date in enumerate(ref_dates):
     # Join back into main dataframe
     points_df = points_df.join(grouped_df, on=['tidepoint_lat', 'tidepoint_lon', 'point_timeagg'], rsuffix="_test")
 
-    # Filter dataframe to keep only points located higher than tidal height and below 5m
-    filteredpoints_df = points_df[(points_df.point_z > (points_df.point_tidal + 0.15)) & (points_df.point_z < 5)]
-    print("Discarding {} points below or at tidal height or above 5m".format(len(points_df) - len(filteredpoints_df)))
+    # Filter to keep only points located higher than instantaneous tide height and below max overall tideheight
+    filteredpoints_df = points_df[(points_df.point_z > (points_df.point_tidal + 0.15))] 
+    print('Discarding {} points below or at tidal height'.format(len(points_df) - len(filteredpoints_df)))
 
     # Select output columns and export to file
     filteredpoints_df = filteredpoints_df[['point_lon', 'point_lat', 'point_z', 'point_tidal',
                                            'point_cat', 'point_path', 'point_time', 'point_timeagg']]
     filteredpoints_df.to_csv('output_data/validation/output_points_{}.csv'.format(name), index=False)
-    # filteredpoints_df.to_csv('output_data/validation/output_points_{}_{}.csv'.format(name, i), index=False)
+
