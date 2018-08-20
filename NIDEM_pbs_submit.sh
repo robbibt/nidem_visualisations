@@ -25,6 +25,9 @@ for polygon in 1 2 3 4 5 6 7 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 26 2
                274 275 276 277 278 279 280 281 283 284 285 286 287 288 289 290 291 292 293 294 \
                295 296 297 298 299 300 302 303 304 305 306
 
+# Validation polygon test, mem=8GB, walltime=0:45:00, jobfs=1GB
+for polygon in 48 269 143 39 256 300 136 33 78 139 152
+
 do
 
     PBS="#!/bin/bash\n\
@@ -33,7 +36,7 @@ do
     #PBS -e PBS_output/NIDEM_${polygon}.err\n\
     #PBS -P r78\n\
     #PBS -q express\n\
-    #PBS -l walltime=0:30:00\n\
+    #PBS -l walltime=0:45:00\n\
     #PBS -l mem=8GB\n\
     #PBS -l jobfs=1GB\n\
     #PBS -l ncpus=1\n\
