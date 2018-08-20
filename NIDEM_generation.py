@@ -21,7 +21,7 @@
 #
 # The mask, unfiltered and filtered NIDEM products are also exported as a combined NetCDF dataset (`NIDEM_XXX.nc`).
 # 
-# Date: June 2018
+# Date: August 2018
 # Author: Robbi Bishop-Taylor, Steven Sagar, Leo Lymburner
 
 
@@ -155,7 +155,7 @@ def main(argv=None):
                                    ds_array=item_array,
                                    ds_crs='EPSG:3577',
                                    ds_geotrans=geotrans,
-                                   output_shp='output_data/contour/NIDEM_contours_{}_test4.shp'.format(polygon_id),
+                                   output_shp='output_data/contour/NIDEM_contours_{}.shp'.format(polygon_id),
                                    contour_rename=contour_offsets)
 
     ##########################################################
@@ -221,7 +221,7 @@ def main(argv=None):
 
     # Convert arrays to boolean masks:
     #  For elevation: any elevations > 25 m in SRTM 30m DEM
-    #  For bathymetry: any depths < -25 m in GBR30, nthaus30 AND Ausbath09 bathymetry
+    #  For bathymetry: any depths < -25 m in GBR30 AND nthaus30 AND Ausbath09 bathymetry
     #  For ITEM confidence: any cells with NDWI STD > 0.25
     elev_mask = srtm30_array > 25
     bathy_mask = (ausbath09_array < -25) & (gbr30_array < -25) & (nthaus30_array < -25)
@@ -292,7 +292,7 @@ def main(argv=None):
 
     # Export unfiltered NIDEM as a GeoTIFF
     print('Exporting unfiltered NIDEM for polygon {}'.format(polygon_id))
-    array_to_geotiff(fname='output_data/geotiff/dem_unfiltered/NIDEM_unfiltered_{}_test2.tif'.format(polygon_id),
+    array_to_geotiff(fname='output_data/geotiff/dem_unfiltered/NIDEM_unfiltered_{}.tif'.format(polygon_id),
                      data=nidem_unfiltered,
                      geo_transform=geotrans,
                      projection=prj,
@@ -300,7 +300,7 @@ def main(argv=None):
 
     # Export filtered NIDEM as a GeoTIFF
     print('Exporting filtered NIDEM for polygon {}'.format(polygon_id))
-    array_to_geotiff(fname='output_data/geotiff/dem/NIDEM_dem_{}_test2.tif'.format(polygon_id),
+    array_to_geotiff(fname='output_data/geotiff/dem/NIDEM_dem_{}.tif'.format(polygon_id),
                      data=nidem_filtered,
                      geo_transform=geotrans,
                      projection=prj,
@@ -308,7 +308,7 @@ def main(argv=None):
 
     # Export NIDEM mask as a GeoTIFF
     print('Exporting NIDEM mask for polygon {}'.format(polygon_id))
-    array_to_geotiff(fname='output_data/geotiff/mask/NIDEM_mask_{}_test2.tif'.format(polygon_id),
+    array_to_geotiff(fname='output_data/geotiff/mask/NIDEM_mask_{}.tif'.format(polygon_id),
                      data=nidem_mask.astype(int),
                      geo_transform=geotrans,
                      projection=prj,
