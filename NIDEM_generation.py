@@ -49,6 +49,16 @@ from datacube.utils.geometry import CRS
 from datacube.storage.storage import create_netcdf_storage_unit
 from datacube.storage import netcdf_writer
 
+import pandas as pd
+import geopandas as gpd
+import datacube
+from datacube.utils import geometry
+from shapely.geometry import mapping
+from datacube.api.query import query_group_by
+from otps import TimePoint, predict_tide
+
+dc = datacube.Datacube(app='NIDEM uncertainty')
+
 
 ##################
 # Generate NIDEM #
@@ -71,7 +81,7 @@ def main(argv=None):
     print(os.getcwd())
 
     # Set ITEM polygon for analysis
-    polygon_id = int(argv[1])
+    polygon_id = int(argv[1])  # polygon_id = 209
 
     # Import configuration details from NIDEM_configuration.ini
     config = configparser.ConfigParser()
@@ -81,6 +91,7 @@ def main(argv=None):
     item_offset_path = config['ITEM inputs']['item_offset_path']
     item_relative_path = config['ITEM inputs']['item_relative_path']
     item_conf_path = config['ITEM inputs']['item_conf_path']
+    item_polygon_path = config['ITEM inputs']['item_polygon_path']
 
     # Set paths to elevation, bathymetry and shapefile datasets used to create NIDEM mask
     srtm30_raster = config['Masking inputs']['srtm30_raster']
@@ -157,6 +168,20 @@ def main(argv=None):
                                    ds_geotrans=geotrans,
                                    output_shp='output_data/contour/NIDEM_contours_{}.shp'.format(polygon_id),
                                    contour_rename=contour_offsets)
+
+    #########################
+    # Calculate uncertainty #
+    #########################
+
+    # Each ITEM interval is produced from a composite of many Landsat images that cover a range of tidal heights that
+    # vary across each tidal modelling polygon. To quantify this range, we take the standard deviation of tide heights
+    # for all Landsat images used to produce each ITEM interval. This represents a measure of the 'uncertainty' (not
+    # to be confused with accuracy) of NIDEM elevations in m units for each contour. These values are later
+    # interpolated to return an  estimate of uncertainty for each individual pixel in the NIDEM datasets.
+
+    # Compute uncertainties for each interval, and create a lookup dict to link uncertainties to each NIDEM contour
+    uncertainty_array = interval_uncertainty(polygon_id=polygon_id, item_polygon_path=item_polygon_path)
+    uncertainty_dict = dict(zip(contour_offsets, uncertainty_array))
 
     ##########################################################
     # Compute ITEM confidence and elevation/bathymetry masks #
@@ -260,6 +285,7 @@ def main(argv=None):
         all_contours = np.concatenate(list(itertools.chain.from_iterable(contour_dict.values())))
         points = all_contours[:, 0:2]
         values = all_contours[:, 2]
+        values_uncert = np.array([np.round(uncertainty_dict[i], 2) for i in values])
 
         # Calculate bounds of ITEM layer to create interpolation grid (from-to-by values in metre units)
         grid_y, grid_x = np.mgrid[upleft_y:bottomright_y:1j * yrows, upleft_x:bottomright_x:1j * xcols]
@@ -268,18 +294,21 @@ def main(argv=None):
         # scipy.interpolate.griddata, which computes a TIN/Delaunay triangulation of the input
         # data with Qhull and performs linear barycentric interpolation on each triangle
         print('Interpolating data for polygon {}'.format(polygon_id))
-        interpolated_array = scipy.interpolate.griddata(points, values, (grid_y, grid_x), method='linear')
+        interp_elev_array = scipy.interpolate.griddata(points, values, (grid_y, grid_x), method='linear')
+        interp_uncert_array = scipy.interpolate.griddata(points, values_uncert, (grid_y, grid_x), method='linear')
 
         # Identify valid intertidal area by selecting pixels between the lowest and highest ITEM intervals
         valid_intertidal_extent = np.where((item_array > 0) & (item_array < 9), 1, 0)
 
         # Create filtered and unfiltered versions of NIDEM
-        nidem_unfiltered = np.where(valid_intertidal_extent, interpolated_array, -9999).astype(np.float32)
+        nidem_uncertainty = np.where(valid_intertidal_extent, interp_uncert_array, -9999).astype(np.float32)
+        nidem_unfiltered = np.where(valid_intertidal_extent, interp_elev_array, -9999).astype(np.float32)
         nidem_filtered = np.where(nidem_mask > 0, -9999, nidem_unfiltered).astype(np.float32)
 
     except ValueError:
 
         # If contours contain no valid data, create empty arrays
+        nidem_uncertainty = np.full((yrows, xcols), -9999)
         nidem_unfiltered = np.full((yrows, xcols), -9999)
         nidem_filtered = np.full((yrows, xcols), -9999)
 
@@ -287,8 +316,8 @@ def main(argv=None):
     # Export geoTIFF data #
     #######################
 
-    # NIDEM is exported as two DEMs: an unfiltered version, and a version filtered to remove > 25 m or < -25 m terrain
-    # and pixels with high ITEM confidence NDWI standard deviation.
+    # NIDEM is exported as two DEMs: an unfiltered version, and a version filtered to remove > 25 m or < -25 m
+    # terrain and pixels with high ITEM confidence NDWI standard deviation.
 
     # Export unfiltered NIDEM as a GeoTIFF
     print('Exporting unfiltered NIDEM for polygon {}'.format(polygon_id))
@@ -302,6 +331,14 @@ def main(argv=None):
     print('Exporting filtered NIDEM for polygon {}'.format(polygon_id))
     array_to_geotiff(fname='output_data/geotiff/dem/NIDEM_dem_{}.tif'.format(polygon_id),
                      data=nidem_filtered,
+                     geo_transform=geotrans,
+                     projection=prj,
+                     nodata_val=-9999)
+
+    # Export NIDEM uncertainty layer as a GeoTIFF
+    print('Exporting NIDEM uncertainty for polygon {}'.format(polygon_id))
+    array_to_geotiff(fname='output_data/geotiff/uncertainty/NIDEM_uncertainty_{}.tif'.format(polygon_id),
+                     data=nidem_uncertainty,
                      geo_transform=geotrans,
                      projection=prj,
                      nodata_val=-9999)
@@ -341,6 +378,10 @@ def main(argv=None):
                                                                                      nodata=-9999,
                                                                                      dims=('y', 'x'),
                                                                                      units='metres'),
+                                                          'uncertainty': Variable(dtype=np.dtype('float32'),
+                                                                                  nodata=-9999,
+                                                                                  dims=('y', 'x'),
+                                                                                  units='metres'),
                                                           'mask': Variable(dtype=np.dtype('int16'),
                                                                            nodata=-9999,
                                                                            dims=('y', 'x'),
@@ -361,6 +402,12 @@ def main(argv=None):
     output_netcdf['dem_unfiltered'].coverage_content_type = 'modelResult'
     output_netcdf['dem_unfiltered'].long_name = 'NIDEM unfiltered data'
 
+    # uncertainty: assign data and set variable attributes
+    output_netcdf['uncertainty'][:] = netcdf_writer.netcdfy_data(nidem_uncertainty)
+    output_netcdf['uncertainty'].standard_name = 'height_above_mean_sea_level'
+    output_netcdf['uncertainty'].coverage_content_type = 'modelResult'
+    output_netcdf['uncertainty'].long_name = 'NIDEM uncertainty'
+
     # mask: assign data and set variable attributes
     output_netcdf['mask'][:] = netcdf_writer.netcdfy_data(nidem_mask)
     output_netcdf['mask'].valid_range = [1, 3]
@@ -375,7 +422,7 @@ def main(argv=None):
     output_netcdf.product_version = '0.1.0'
     output_netcdf.license = 'CC BY Attribution 4.0 International License'
     output_netcdf.time_coverage_start = '1986-01-01'
-    output_netcdf.time_coverage_end = '2016-10-31'
+    output_netcdf.time_coverage_end = '2016-12-31'
     output_netcdf.cdm_data_type = 'Grid'
     output_netcdf.contact = 'clientservices@ga.gov.au'
     output_netcdf.publisher_email = 'earth.observation@ga.gov.au'
@@ -756,6 +803,61 @@ def contour_extract(contour_vals, ds_array, ds_crs, ds_geotrans, output_shp=None
                               'geometry': mapping(contour_multilinestring)})
 
     return contour_dict
+
+
+def interval_uncertainty(polygon_id, item_polygon_path,
+                         products=('ls5_pq_albers', 'ls7_pq_albers', 'ls8_pq_albers'),
+                         time_period=('1986-01-01', '2017-01-01')):
+
+    # Import tidal model data and extract geom and tide post
+    item_gpd = gpd.read_file(item_polygon_path)
+    lat, lon, poly = item_gpd[item_gpd.ID == int(polygon_id)][['lat', 'lon', 'geometry']].values[0]
+    geom = geometry.Geometry(mapping(poly), crs=geometry.CRS(item_gpd.crs['init']))
+
+    all_times_obs = list()
+
+    # For each product:
+    for source in products:
+
+        # Use entire time range unless LS7
+        time_range = ('1986-01-01', '2003-05-01') if source == 'ls7_pq_albers' else time_period
+
+        # Determine matching datasets for geom area and group into solar day
+        ds = dc.find_datasets(product=source, time=time_range, geopolygon=geom)
+        group_by = query_group_by(group_by='solar_day')
+        sources = dc.group_datasets(ds, group_by)
+
+        # If data is found, add time to list then sort
+        if len(ds) > 0:
+            all_times_obs.extend(sources.time.data.astype('M8[s]').astype('O').tolist())
+
+    # Calculate tide data from X-Y-time location
+    all_times_obs = sorted(all_times_obs)
+    tp_obs = [TimePoint(float(lon), float(lat), dt) for dt in all_times_obs]
+    tides_obs = [tide.tide_m for tide in predict_tide(tp_obs)]
+
+    # Covert to dataframe of observed dates and tidal heights
+    df1_obs = pd.DataFrame({'Tide_height': tides_obs}, index=pd.DatetimeIndex(all_times_obs))
+
+
+    ##################
+    # ITEM intervals #
+    ##################
+
+    # Compute percentage tide height
+    min_height = df1_obs.Tide_height.min()
+    max_height = df1_obs.Tide_height.max()
+    observed_range = max_height - min_height
+
+    # Create dict of percentile values
+    per10_dict = {perc + 1: min_height + observed_range * perc * 0.1 for perc in range(0, 10, 1)}
+
+    # Bin each observation into an interval
+    df1_obs['interval'] = pd.cut(df1_obs.Tide_height,
+                                 bins=list(per10_dict.values()),
+                                 labels=list(per10_dict.keys())[:-1])
+
+    return df1_obs.groupby('interval').std().values.flatten()
 
 
 if __name__ == "__main__":
