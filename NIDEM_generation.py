@@ -57,7 +57,7 @@ from shapely.geometry import mapping
 from datacube.api.query import query_group_by
 from otps import TimePoint, predict_tide
 
-dc = datacube.Datacube(app='NIDEM uncertainty')
+dc = datacube.Datacube(app='NIDEM generation')
 
 
 ##################
@@ -143,9 +143,7 @@ def main(argv=None):
     # As we only want to fill pixels on the boundary of NIDEM tiles, set pixels outside the dilated area back to NaN:
     item_array[~dilated_mask] = np.nan
 
-    ####################
-    # Extract contours #
-    ####################
+
 
     # ITEM offset values represent the median tidal height for all Landsat images that were used to generate each
     # of the ITEM v2.0 tidal interval boundaries (Sagar et al. 2017, https://doi.org/10.1016/j.rse.2017.04.009).
@@ -159,16 +157,6 @@ def main(argv=None):
     item_offsets = {int(key): [float(val) / 1000.0 for val in value.split(' ')] for (key, value) in item_offsets}
     contour_offsets = item_offsets[polygon_id]
 
-    # Extract contours for the boundaries between each ITEM tidal interval (e.g. 0.5 is the boundary between ITEM
-    # interval 0 and interval 1; 5.5 is the boundary between interval 5 and interval 6). The `contours_rename`
-    # parameter assigns each contour with their corresponding ITEM offset values
-    contour_dict = contour_extract(contour_vals=np.arange(0.5, 9.5, 1.0),
-                                   ds_array=item_array,
-                                   ds_crs='EPSG:3577',
-                                   ds_geotrans=geotrans,
-                                   output_shp='output_data/contour/NIDEM_contours_{}.shp'.format(polygon_id),
-                                   contour_rename=contour_offsets)
-
     #########################
     # Calculate uncertainty #
     #########################
@@ -176,12 +164,35 @@ def main(argv=None):
     # Each ITEM interval is produced from a composite of many Landsat images that cover a range of tidal heights that
     # vary across each tidal modelling polygon. To quantify this range, we take the standard deviation of tide heights
     # for all Landsat images used to produce each ITEM interval. This represents a measure of the 'uncertainty' (not
-    # to be confused with accuracy) of NIDEM elevations in m units for each contour. These values are later
-    # interpolated to return an  estimate of uncertainty for each individual pixel in the NIDEM datasets.
+    # to be confused with accuracy) of NIDEM elevations in m units for each contour. These values are subsequently
+    # interpolated to return an estimate of uncertainty for each individual pixel in the NIDEM datasets: larger
+    # values indicate the ITEM interval was produced from a composite of images with a larger range of tide heights.
 
     # Compute uncertainties for each interval, and create a lookup dict to link uncertainties to each NIDEM contour
     uncertainty_array = interval_uncertainty(polygon_id=polygon_id, item_polygon_path=item_polygon_path)
     uncertainty_dict = dict(zip(contour_offsets, uncertainty_array))
+
+    ####################
+    # Extract contours #
+    ####################
+
+    # Extract contours for the boundaries between each ITEM tidal interval (e.g. 0.5 is the boundary between ITEM
+    # interval 0 and interval 1; 5.5 is the boundary between interval 5 and interval 6). The `contours_rename`
+    # parameter assigns each contour with their corresponding ITEM offset values
+    # contour_dict = contour_extract(contour_vals=np.arange(0.5, 9.5, 1.0),
+    #                                ds_array=item_array,
+    #                                ds_crs='EPSG:3577',
+    #                                ds_geotrans=geotrans,
+    #                                output_shp='output_data/contour/NIDEM_contours_{}.shp'.format(polygon_id),
+    #                                contour_rename=contour_offsets)
+
+    contour_dict = contour_extract(z_values=np.arange(0.5, 9.5, 1.0),
+                                   ds_array=item_array,
+                                   ds_crs='EPSG:3577',
+                                   ds_geotrans=geotrans,
+                                   output_shp='output_data/contour/NIDEM_contours_{}_test2.shp'.format(polygon_id),
+                                   attribute_data={'elev_m': contour_offsets, 'uncert_m': uncertainty_array},
+                                   attribute_dtypes={'elev_m': 'float:9.2', 'uncert_m': 'float:9.2'})
 
     ##########################################################
     # Compute ITEM confidence and elevation/bathymetry masks #
@@ -264,7 +275,6 @@ def main(argv=None):
     # Set manually included pixels to -9999 to prevent masking
     nidem_mask[manually_included] = -9999
 
-
     #######################################################################
     # Interpolate contours using TIN/Delaunay triangulation interpolation #
     #######################################################################
@@ -279,13 +289,17 @@ def main(argv=None):
     # If contours include valid data, proceed with interpolation
     try:
 
-        # Chain and concatenate all arrays nested within array lists (i.e. individual collections of same
-        # elevation contours) and dictionary entries (i.e. collections of all same-elevation contours). Extract
-        # combined lists of xy points and z-values from all contours
-        all_contours = np.concatenate(list(itertools.chain.from_iterable(contour_dict.values())))
-        points = all_contours[:, 0:2]
-        values = all_contours[:, 2]
-        values_uncert = np.array([np.round(uncertainty_dict[i], 2) for i in values])
+        # Combine all individual contours for each contour height, and insert a new column giving the array's z-value
+        zval_contours = [np.insert(np.concatenate(v), 2, contour_offsets[i], axis=1) for i, v in
+                         enumerate(contour_dict.values())]
+
+        # Combine arrays for each different contour height into a single array, and then extract xy points and z-values
+        all_contours = np.concatenate(zval_contours)
+        points_xy = all_contours[:, [1, 0]]
+        values_elev = all_contours[:, 2]
+
+        # Create a matching list of uncertainty values for each xy point
+        values_uncert = np.array([np.round(uncertainty_dict[i], 2) for i in values_elev])
 
         # Calculate bounds of ITEM layer to create interpolation grid (from-to-by values in metre units)
         grid_y, grid_x = np.mgrid[upleft_y:bottomright_y:1j * yrows, upleft_x:bottomright_x:1j * xcols]
@@ -294,8 +308,8 @@ def main(argv=None):
         # scipy.interpolate.griddata, which computes a TIN/Delaunay triangulation of the input
         # data with Qhull and performs linear barycentric interpolation on each triangle
         print('Interpolating data for polygon {}'.format(polygon_id))
-        interp_elev_array = scipy.interpolate.griddata(points, values, (grid_y, grid_x), method='linear')
-        interp_uncert_array = scipy.interpolate.griddata(points, values_uncert, (grid_y, grid_x), method='linear')
+        interp_elev_array = scipy.interpolate.griddata(points_xy, values_elev, (grid_y, grid_x), method='linear')
+        interp_uncert_array = scipy.interpolate.griddata(points_xy, values_uncert, (grid_y, grid_x), method='linear')
 
         # Identify valid intertidal area by selecting pixels between the lowest and highest ITEM intervals
         valid_intertidal_extent = np.where((item_array > 0) & (item_array < 9), 1, 0)
@@ -672,6 +686,174 @@ def reproject_to_template(input_raster, template_raster, output_raster, resoluti
     return output_ds
 
 
+def contour_extract(z_values, ds_array, ds_crs, ds_geotrans, output_shp=None,
+                    attribute_data=None, attribute_dtypes=None):
+
+    """
+    Uses `skimage.measure.find_contours` to extract contour lines from a two-dimensional array.
+    Contours are extracted as a dictionary of xy point arrays for each contour z-value, and optionally as
+    line
+    shapefile with a feature per contour z-value.
+
+    Last modified: September 2018
+    Author: Robbi Bishop-Taylor
+
+    :param z_values:
+        A list of numeric contour values to extract from the array.
+
+    :param ds_array:
+        A two-dimensional numpy array from which contours are extracted.
+
+    :param ds_crs:
+        Either a EPSG string giving the coordinate system of the array (e.g. 'EPSG:3577'), or a crs
+        object (e.g. from an xarray dataset: xarray_ds.geobox.crs).
+
+    :param ds_geotrans:
+        Either a gdal-derived geotransform object (e.g. gdal_ds.GetGeoTransform()), or an
+        affine object from a rasterio or xarray object (e.g. 'xarray_ds.geobox.affine').
+
+    :param output_shp:
+        An optional string giving a path and filename for the output shapefile. Defaults to None, which
+        does not generate a shapefile.
+
+    :param attribute_data:
+        An optional dictionary of lists used to define attributes/fields to add to the shapefile. Dict keys give
+        the name of the shapefile attribute field, while dict values must be lists of the same length as `z_values`.
+        For example, if `z_values=[0, 10, 20]`, then `attribute_data={'type: [1, 2, 3]}` can be used to create a
+        shapefile field called 'type' with a value for each contour in the shapefile. The default is None, which
+        produces a default shapefile field called 'z_value' with values taken directly from the `z_values` parameter
+        and formatted as a 'float:9.2'.
+
+    :param attribute_dtypes:
+        An optional dictionary giving the output dtype for each shapefile attribute field that is specified by
+        `attribute_data`. For example, `attribute_dtypes={'type: 'int'}` can be used to set the 'type' field to an
+        integer dtype. The dictionary should have the same keys/field names as declared in `attribute_data`.
+        Valid values include 'int', 'str', 'datetime, and 'float:X.Y', where X is the minimum number of characters
+        before the decimal place, and Y is the number of characters after the decimal place.
+
+    :return:
+        A dictionary with contour z-values as the dict key, and a list of xy point arrays as dict values.
+
+    """
+
+    from skimage.measure import find_contours
+    from shapely.geometry import MultiLineString
+
+    # Obtain pixel size/location from either rasterio/xarray affine or gdal geotransform
+    if type(ds_geotrans) == affine.Affine:
+        ds_affine = ds_geotrans
+    else:
+        ds_affine = affine.Affine.from_gdal(*ds_geotrans)
+
+    ####################
+    # Extract contours #
+    ####################
+
+    # Output dict to hold contours for each offset
+    contours_dict = collections.OrderedDict()
+
+    for z_value in z_values:
+
+        # Extract contours and convert output array pixel coordinates into arrays of real world Albers coordinates.
+        # We need to add 12.5 m to x values and subtract 12.5 m from y values to correct coordinates to give the
+        # centre point of pixels, rather than the top-left corner
+        contours_geo = [np.column_stack(ds_affine * (i[:, 1], i[:, 0])) + np.array([12.5, -12.5]) for i in
+                        find_contours(ds_array, z_value)]
+
+        # For each array of coordinates, drop any xy points that have NA
+        contours_nona = [i[~np.isnan(i).any(axis=1)] for i in contours_geo]
+
+        # Drop 0 length and add list of contour arrays to dict
+        contours_dict[z_value] = [i for i in contours_nona if len(i) > 1]
+
+    #######################
+    # Export to shapefile #
+    #######################
+
+    # If a shapefile path is given, generate shapefile
+    if output_shp:
+
+        # If attribute fields are left empty, default to including a single z-value field based on `z_values`
+        if not attribute_data:
+
+            # Default field uses two decimal points by default
+            attribute_data = {'z_value': z_values}
+            attribute_dtypes = {'z_value': 'float:9.2'}
+
+        # Set up output multiline shapefile properties
+        schema = {'geometry': 'MultiLineString',
+                  'properties': attribute_dtypes}
+
+        # Create output shapefile for writing
+        with fiona.open(output_shp, 'w',
+                        crs={'init': str(ds_crs), 'no_defs': True},
+                        driver='ESRI Shapefile',
+                        schema=schema) as output:
+
+            # Write each shapefile to the dataset one by one
+            for i, (z_value, contours) in enumerate(contours_dict.items()):
+
+                # Create multi-string object from all contour coordinates
+                contour_multilinestring = MultiLineString(contours)
+
+                # Get attribute values for writing
+                attribute_vals = {field_name: field_vals[i] for field_name, field_vals in attribute_data.items()}
+
+                # Write output shapefile to file with z-value field
+                output.write({'properties': attribute_vals,
+                              'geometry': mapping(contour_multilinestring)})
+
+    # Return dict of countour arrays
+    return contours_dict
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+attribute_data = {'elevation': [1.567, 1.5, 2.875, 3.5, 4.5, 5.5, 250.56789, 7.5, 50000]}
+attribute_dtypes = {'elevation': 'float:9.2'}
+
+attribute_data = {}
+attribute_dtypes = {}
+
+
+contour_dict = contour_extract(z_values=[0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5],
+                               ds_array=ds_array,
+                               ds_crs=ds_crs,
+                               ds_geotrans=ds_geotrans,
+                               output_shp='test4.shp',
+                               attribute_data=attribute_data,
+                               attribute_dtypes=attribute_dtypes)
+
+
+contour_dict.keys()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 def contour_extract(contour_vals, ds_array, ds_crs, ds_geotrans, output_shp=None,
                     contour_field='elevation', contour_dtype='float:9.2', contour_rename=None):
 
@@ -808,6 +990,37 @@ def contour_extract(contour_vals, ds_array, ds_crs, ds_geotrans, output_shp=None
 def interval_uncertainty(polygon_id, item_polygon_path,
                          products=('ls5_pq_albers', 'ls7_pq_albers', 'ls8_pq_albers'),
                          time_period=('1986-01-01', '2017-01-01')):
+
+    """
+    This function uses the Digital Earth Australia archive to compute the standard deviation of tide heights for all
+    Landsat observations that were used to generate the ITEM 2.0 composite layers and resulting tidal intervals. These
+    standard deviations (one for each ITEM 2.0 interval) quantify the 'uncertainty' of each NIDEM elevation estimate:
+    larger values indicate the ITEM interval was produced from a composite of images with a larger range of tide
+    heights.
+
+    Last modified: September 2018
+    Author: Robbi Bishop-Taylor
+
+    :param polygon_id:
+        An integer giving the polygon ID of the desired ITEM v2.0 polygon to analyse.
+
+    :param item_polygon_path:
+        A string giving the path to the ITEM v2.0 polygon shapefile.
+
+    :param products:
+        An optional tuple of DEA Landsat product names used to calculate tide heights of all observations used
+        to generate ITEM v2.0 tidal intervals. Defaults to ('ls5_pq_albers', 'ls7_pq_albers', 'ls8_pq_albers'),
+        which loads Landsat 5, Landsat 7 and Landsat 8.
+
+    :param time_period:
+        An optional tuple giving the start and end date to analyse. Defaults to ('1986-01-01', '2017-01-01'), which
+        analyses all Landsat observations from the start of 1986 to the end of 2016.
+
+    :return:
+        An array of shape (9,) giving the standard deviation of tidal heights for all Landsat observations used to
+        produce each ITEM interval.
+
+    """
 
     # Import tidal model data and extract geom and tide post
     item_gpd = gpd.read_file(item_polygon_path)
