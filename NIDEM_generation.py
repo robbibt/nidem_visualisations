@@ -103,7 +103,6 @@ def main(argv=None):
     # Print run details
     print('Processing polygon {} from {}'.format(polygon_id, item_offset_path))
 
-
     ##################################
     # Import and prepare ITEM raster #
     ##################################
@@ -134,39 +133,35 @@ def main(argv=None):
     dilated_mask = nd.morphology.binary_dilation(~np.isnan(item_array), iterations=1)
 
     # For every pixel, identify the indices of the nearest pixel with data (i.e. data pixels will return their own
-    # indices; nodata pixels will return the indices of the nearest data pixel). This output can be used to index back
-    # into the original array, returning a new array where data pixels remain the same, but every nodata pixel is
-    # filled with the value of the nearest data pixel:
+    # indices; nodata pixels will return the indices of the nearest data pixel). This output can be used to index
+    # back into the original array, returning a new array where data pixels remain the same, but every nodata pixel
+    # is filled with the value of the nearest data pixel:
     nearest_inds = nd.distance_transform_edt(input=np.isnan(item_array), return_distances=False, return_indices=True)
     item_array = item_array[tuple(nearest_inds)]
 
     # As we only want to fill pixels on the boundary of NIDEM tiles, set pixels outside the dilated area back to NaN:
     item_array[~dilated_mask] = np.nan
 
+    ##########################################
+    # Median and SD tide height per interval #
+    ##########################################
 
-
-    # ITEM offset values represent the median tidal height for all Landsat images that were used to generate each
-    # of the ITEM v2.0 tidal interval boundaries (Sagar et al. 2017, https://doi.org/10.1016/j.rse.2017.04.009).
-    # Here, we use `skimage.measure.find_contours` to rapidly extract contours along the boundary of each ITEM tidal
-    # interval (intervals 0 to 9), and assign these contours their corresponding ITEM offset value. This results
-    # in a set of tidally tagged contours that can be used to interpolate elevations across the intertidal zone.
-    # Contours are exported as line shapefiles to assist in subsequent assessment of output DEMs.
+    # Each ITEM v2.0 tidal interval boundary was produced from a composite of multiple Landsat images that cover a
+    # range of tidal heights. To obtain an elevation relative to modelled mean sea level for each interval boundary,
+    # we import a precomputed file containing the median tidal height for all Landsat images that were used to
+    # generate the interval (Sagar et al. 2017, https://doi.org/10.1016/j.rse.2017.04.009).
 
     # Import ITEM offset values for each ITEM tidal interval, dividing by 1000 to give metre units
     item_offsets = np.loadtxt('{}/elevation.txt'.format(item_offset_path), delimiter=',', dtype='str')
     item_offsets = {int(key): [float(val) / 1000.0 for val in value.split(' ')] for (key, value) in item_offsets}
     contour_offsets = item_offsets[polygon_id]
 
-    #########################
-    # Calculate uncertainty #
-    #########################
-
-    # Each ITEM interval is produced from a composite of many Landsat images that cover a range of tidal heights that
-    # vary across each tidal modelling polygon. To quantify this range, we take the standard deviation of tide heights
-    # for all Landsat images used to produce each ITEM interval. This represents a measure of the 'uncertainty' (not
-    # to be confused with accuracy) of NIDEM elevations in m units for each contour. These values are subsequently
-    # interpolated to return an estimate of uncertainty for each individual pixel in the NIDEM datasets: larger
-    # values indicate the ITEM interval was produced from a composite of images with a larger range of tide heights.
+    # The range of tide heights used to compute the above median tide height can vary significantly between tidal
+    # modelling polygons. To quantify this range, we take the standard deviation of tide heights for all Landsat
+    # images used to produce each ITEM interval. This represents a measure of the 'uncertainty' (not to be confused
+    # with accuracy) of NIDEM elevations in m units for each contour. These values are subsequently interpolated to
+    # return an estimate of uncertainty for each individual pixel in the NIDEM datasets: larger values indicate the
+    # ITEM interval was produced from a composite of images with a larger range of tide heights.
 
     # Compute uncertainties for each interval, and create a lookup dict to link uncertainties to each NIDEM contour
     uncertainty_array = interval_uncertainty(polygon_id=polygon_id, item_polygon_path=item_polygon_path)
@@ -176,27 +171,21 @@ def main(argv=None):
     # Extract contours #
     ####################
 
-    # Extract contours for the boundaries between each ITEM tidal interval (e.g. 0.5 is the boundary between ITEM
-    # interval 0 and interval 1; 5.5 is the boundary between interval 5 and interval 6). The `contours_rename`
-    # parameter assigns each contour with their corresponding ITEM offset values
-    # contour_dict = contour_extract(contour_vals=np.arange(0.5, 9.5, 1.0),
-    #                                ds_array=item_array,
-    #                                ds_crs='EPSG:3577',
-    #                                ds_geotrans=geotrans,
-    #                                output_shp='output_data/contour/NIDEM_contours_{}.shp'.format(polygon_id),
-    #                                contour_rename=contour_offsets)
-
+    # Here, we use `skimage.measure.find_contours` to extract contours along the boundary of each ITEM tidal interval
+    # (e.g. 0.5 is the boundary between ITEM interval 0 and interval 1; 5.5 is the boundary between interval 5 and
+    # interval 6). This function outputs a dictionary with ITEM interval boundaries as keys and lists of xy point
+    # arrays as values. Contours are also exported as a shapefile with elevation and uncertainty attributes in metres.
     contour_dict = contour_extract(z_values=np.arange(0.5, 9.5, 1.0),
                                    ds_array=item_array,
                                    ds_crs='EPSG:3577',
                                    ds_geotrans=geotrans,
-                                   output_shp='output_data/contour/NIDEM_contours_{}_test2.shp'.format(polygon_id),
+                                   output_shp='output_data/contour/NIDEM_contours_{}.shp'.format(polygon_id),
                                    attribute_data={'elev_m': contour_offsets, 'uncert_m': uncertainty_array},
                                    attribute_dtypes={'elev_m': 'float:9.2', 'uncert_m': 'float:9.2'})
 
-    ##########################################################
-    # Compute ITEM confidence and elevation/bathymetry masks #
-    ##########################################################
+    #########################################################
+    # Create ITEM confidence and elevation/bathymetry masks #
+    #########################################################
 
     # The following code applies a range of masks to remove pixels where elevation values are likely to be invalid:
     #
@@ -279,9 +268,10 @@ def main(argv=None):
     # Interpolate contours using TIN/Delaunay triangulation interpolation #
     #######################################################################
 
-    # Generates continuous elevation surfaces by interpolating between the extracted contours. This uses the linear
-    # method from `scipy.interpolate.griddata`, which computes a TIN/Delaunay triangulation of the input data using
-    # Qhull before performing linear barycentric interpolation on each triangle.
+    # Here we assign each previously generated contour with its modelled height relative to MSL, producing a set of
+    # tidally tagged xyz points that can be used to interpolate elevations across the intertidal zone. We use the
+    # linear interpolation method from `scipy.interpolate.griddata`, which computes a TIN/Delaunay triangulation of
+    # the input data using Qhull before performing linear barycentric interpolation on each triangle.
     #
     # Because the lowest and highest ITEM intervals (0 and 9) cannot be correctly interpolated as they have no lower
     # or upper bounds, the filtered NIDEM is constrained to valid intertidal terrain (ITEM intervals 1-8).
