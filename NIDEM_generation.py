@@ -8,20 +8,22 @@
 # interval boundaries, extracts contours around each tidal interval, and then interpolates between these contours
 # using TIN/Delaunay triangulation linear interpolation. This interpolation method preserves the tidal interval
 # boundaries of ITEM v2.0. NIDEM consists of several output files:
-# 
-# 1. Contour line shapefiles (`NIDEM_contours_XXX.shp`) used for the interpolation. These datasets facilitate
-#    re-analysis by allowing DEMs to be generated using alternative interpolation methods.
-# 2. Mask rasters (`NIDEM_mask_XXX.tif`) that flag cells with elevations greater than 25 m (value=1), less than
-#    -25 m (value=2), and ITEM confidence NDWI standard deviation greater than 0.25 (value=3). These masks were used
-#    to filter the output NIDEM layers.
-# 3. Unfiltered NIDEM rasters (`NIDEM_unfiltered_XXX.tif`) with elevations in metres relative to Mean Sea Level.
-# 4. Filtered NIDEM rasters (`NIDEM_dem_XXX.tif`) with elevations in metre units relative to Mean Sea Level that have
-#    been cleaned by masking out cells included in the mask layers. This is the primary output product, and is
-#    expected to be the default product used for most applications.
 #
-# The mask, unfiltered and filtered NIDEM products are also exported as a combined NetCDF dataset (`NIDEM_XXX.nc`).
+# 1. Filtered NIDEM rasters (`NIDEM_dem_XXX.tif`) with elevations in metre units relative to Mean Sea Level that have
+#    been cleaned by masking out cells included in the below mask layers. This is the primary output product, and is
+#    expected to be the default product used for most applications.
+# 2. Unfiltered NIDEM rasters (`NIDEM_unfiltered_XXX.tif`) with elevations in metres relative to Mean Sea Level.
+# 3. Mask rasters (`NIDEM_mask_XXX.tif`) that flag cells with terrestrial elevations greater than 25 m (value=1),
+#    sub-tidal pixels deeper than -25 m (value=2), and ITEM confidence NDWI standard deviation greater than 0.25
+#    (value=3). These masks were used to filter the output NIDEM layers.
+# 4. Uncertainty rasters (`NIDEM_uncertainty_XXX.tif`) providing a represents a measure of the uncertainty (not to
+#    be confused with accuracy) of NIDEM elevations in m units for each pixel.
+# 5. Contour line shapefiles (`NIDEM_contours_XXX.shp`) used for the interpolation. These datasets facilitate
+#    re-analysis by allowing DEMs to be generated using alternative interpolation methods.
+#
+# The filtered, unfiltered, mask & uncertainty products are also exported as a single NetCDF dataset (`NIDEM_XXX.nc`).
 # 
-# Date: August 2018
+# Date: September 2018
 # Author: Robbi Bishop-Taylor, Steven Sagar, Leo Lymburner
 
 
@@ -55,6 +57,7 @@ from datacube.utils import geometry
 from datacube.api.query import query_group_by
 from otps import TimePoint, predict_tide
 
+# Connect to datacube instance
 dc = datacube.Datacube(app='NIDEM generation')
 
 
@@ -194,11 +197,11 @@ def main(argv=None):
     try:
 
         # Combine all individual contours for each contour height, and insert a height above MSL column into array
-        zval_contours = [np.insert(np.concatenate(v), 2, contour_offsets[i], axis=1) for i, v in
+        elev_contours = [np.insert(np.concatenate(v), 2, contour_offsets[i], axis=1) for i, v in
                          enumerate(contour_dict.values())]
 
         # Combine all contour heights into a single array, and then extract xy points and z-values
-        all_contours = np.concatenate(zval_contours)
+        all_contours = np.concatenate(elev_contours)
         points_xy = all_contours[:, [1, 0]]
         values_elev = all_contours[:, 2]
 
@@ -227,9 +230,9 @@ def main(argv=None):
 
     # The following code applies a range of masks to remove pixels where elevation values are likely to be invalid:
     #
-    # 1. Non-coastal pixels with elevations greater than 25 m above MSL. This mask is computed using SRTM-derived
-    #    1 Second Digital Elevation Model data (http://pid.geoscience.gov.au/dataset/ga/69769).
-    # 2. Deep water pixels with bathymetry values less than -25 m below MSL. This mask is computed by identifying
+    # 1. Non-coastal terrestrial pixels with elevations greater than 25 m above MSL. This mask is computed using
+    #    SRTM-derived 1 Second Digital Elevation Model data (http://pid.geoscience.gov.au/dataset/ga/69769).
+    # 2. Sub-tidal pixels with bathymetry values deeper than -25 m below MSL. This mask is computed by identifying
     #    any pixels that are < -25 m in all of the national Australian Bathymetry and Topography Grid
     #    (http://pid.geoscience.gov.au/dataset/ga/67703), gbr30 High-resolution depth model for the Great
     #    Barrier Reef (http://pid.geoscience.gov.au/dataset/ga/115066) and nthaus30 High-resolution depth model
