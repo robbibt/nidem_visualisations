@@ -1,3 +1,17 @@
+# coding: utf-8
+
+# NIDEM LiDAR tidal tagging
+#
+# This script imports multiple xyz .csv files for each LiDAR validation site, converts GPS timestamps to UTC, then
+# uses these to compute tide heights at the exact moment each point was acquired during the LiDAR survey.
+# Non-inundated points are then identified by selecting points located above the water's surface at the time
+# each point was acquired. These non-inundated points (representing intertidal and terrestrial locations)
+# are then exported as a single .csv.
+#
+# Date: October 2018
+# Author: Robbi Bishop-Taylor, Steven Sagar, Leo Lymburner
+
+
 import glob
 import os
 import pandas as pd
@@ -100,7 +114,7 @@ os.chdir('/g/data/r78/rt1527/nidem')
 study_areas_df = pd.read_csv('lidar_study_areas.csv', index_col=0)
 study_areas = study_areas_df.to_dict('index')
 
-for name in ['Gladstone', 'Whitsunday', 'Rockhampton', 'Isaac', 'Mackay', 'Fraser', 'Kaurumba']:
+for name in ['Fraser', 'Gladstone', 'Whitsunday', 'Rockhampton', 'Isaac', 'Mackay', 'Kaurumba']:
 
     ###############
     # Import data #
