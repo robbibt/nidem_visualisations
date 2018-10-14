@@ -17,7 +17,7 @@ NIDEM is based on a 30 year time series archive of spatially and spectrally cali
 
 NIDEM complements existing intertidal extent products, and provides data that support a new suite of use cases that require a more detailed understanding of the three-dimensional topography of the intertidal zone, such as hydrodynamic modelling, coastal risk management and ecological habitat mapping.
 
-To view and access the data, visit nationalmap.gov.au. Select 'Add data', and then the 'Surface Water and Marine/Tidal' theme. Click on 'National Intertidal Digital Elevation Model 25m 1.0.0' and then 'Add to the map'.
+To view and access the data, visit http://nationalmap.gov.au. Select 'Add data', and then the 'Surface Water and Marine/Tidal' theme. Click on 'National Intertidal Digital Elevation Model 25m 1.0.0' and then 'Add to the map'.
 
 
 ## Background
