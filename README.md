@@ -115,9 +115,9 @@ Attributes:
 
 To assess the accuracy of NIDEM, we compared modelled elevations against three independent elevation and bathymetry validation datasets: the DEM of Australia derived from LiDAR 5 Metre Grid (Geoscience Australia, 2015), elevation data collected from a Real Time Kinematic (RTK) GPS survey (HydroSurvey Australia, 2009), and 1.0 m resolution multibeam bathymetry surveys (Solihuddin et al., 2016): 
 
-    - LiDAR, 7 sites across central and northern Queensland: Pearson's correlation = 0.94, Spearman's correlation = 0.93, RMSE +/- 0.32 m
-    - RTK GPS, 1 site in Darwin, Northern Territory: Pearson's correlation = 0.90, Spearman's correlation = 0.92, RMSE +/- 0.60 m
-    - Multibeam, 5 sites across the southern Kimberley region, Western Australia: Pearson's correlation = 0.36, Spearman's correlation = 0.77, RMSE +/- 3.12 m
+* LiDAR, 7 sites across central and northern Queensland: Pearson's correlation = 0.94, Spearman's correlation = 0.93, RMSE +/- 0.32 m
+* RTK GPS, 1 site in Darwin, Northern Territory: Pearson's correlation = 0.90, Spearman's correlation = 0.92, RMSE +/- 0.60 m
+* Multibeam, 5 sites across the southern Kimberley region, Western Australia: Pearson's correlation = 0.36, Spearman's correlation = 0.77, RMSE +/- 3.12 m
 
 
 ### Limitations
@@ -132,10 +132,10 @@ The complex temporal behaviour of tides mean that a sun synchronous sensor like 
 
 While image compositing and masking methods have been applied to remove the majority of noise and non-tidal artefacts from NIDEM, issues remain in several locations. It is recommended that the data be used with caution in the following areas:
 
-    - The Recherche Archipelago in southern Western Australia
-    - Port Phillip Bay in Victoria
-    - The eastern coast of Tasmania and King Island
-    - Saunders Reef and surrounds in the northern Coral Sea
+* The Recherche Archipelago in southern Western Australia
+* Port Phillip Bay in Victoria
+* The eastern coast of Tasmania and King Island
+* Saunders Reef and surrounds in the northern Coral Sea
 
 ## References
 
