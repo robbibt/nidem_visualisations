@@ -118,8 +118,6 @@ def main(argv=None):
         print(str_usage)
         sys.exit()
 
-    print(os.getcwd())
-
     # Set ITEM polygon for analysis
     polygon_id = int(argv[1])  # polygon_id = 33
 
@@ -384,8 +382,6 @@ def main(argv=None):
                      projection=prj,
                      dtype=gdal.GDT_Int16,
                      nodata_val=-9999)
-
-
 
     ######################
     # Export NetCDF data #
