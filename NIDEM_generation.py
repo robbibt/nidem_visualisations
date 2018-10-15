@@ -7,7 +7,16 @@
 # Intertidal Extents Model (ITEM v2.0) and median tidal elevations for each tidal interval, computes elevations at
 # interval boundaries, extracts contours around each tidal interval, and then interpolates between these contours
 # using TIN/Delaunay triangulation linear interpolation. This interpolation method preserves the tidal interval
-# boundaries of ITEM v2.0. NIDEM consists of several output datasets:
+# boundaries of ITEM v2.0.
+#
+# To generate NIDEM datasets:
+#
+#    1. Set the locations to input datasets in the NIDEM_configuration.ini configuration .ini file
+#
+#    2. On the NCI, run the NIDEM_pbs_submit.sh shell script which iterates through a set of ITEM polygon tile IDs
+#       in parallel. This will call this script (NIDEM_generation.py) which conducts the actual analysis.
+#
+# NIDEM consists of several output datasets:
 #
 # 1. The NIDEM dataset (e.g. 'NIDEM_33_130.91_-12.26.tif') provides elevation in metre units relative to modelled
 #    Mean Sea Level for each pixel of intertidal terrain across the Australian coastline. The DEMs have been cleaned
