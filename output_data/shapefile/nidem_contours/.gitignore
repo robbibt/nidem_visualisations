@@ -1,0 +1,6 @@
+# Ignore everything
+*.dbf
+*.prj
+*.shp
+*.shx
+*.cpg

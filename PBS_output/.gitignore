@@ -1,5 +1,3 @@
 # Ignore everything
-*
-
-# Except
-!.gitignore
+*.out
+*.err

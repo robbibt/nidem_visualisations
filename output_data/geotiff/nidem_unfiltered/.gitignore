@@ -1,2 +1,4 @@
 # Ignore everything
-*.nc
+*.tif
+*.vrt
+*.ovr
