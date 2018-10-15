@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# # Very high memory and long wall time polygons, mem=64GB, walltime=48:00:00, jobfs=2GB
-# for polygon in 8 178 220 301
+# Very high memory and long wall time polygons, mem=64GB, walltime=48:00:00, jobfs=2GB
+for polygon in 8 178 220 282 301
 
 # Low memory polygons, mem=16GB, walltime=1:00:00, jobfs=2GB
 # for polygon in 1 2 3 4 5 6 7 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 \
@@ -16,8 +16,8 @@
 #                210 211 212 213 214 215 216 217 218 219 221 222 223 224 225 226 227 228 229 230 \
 #                231 232 233 234 235 236 237 238 239 240 241 242 243 244 245 246 247 248 249 250 \
 #                251 252 253 254 255 256 257 258 259 260 261 262 263 264 265 266 267 268 269 270 \
-#                271 272 273 274 275 276 277 278 279 280 281 282 283 284 285 286 287 288 289 290 \
-#                291 292 293 294 295 296 297 298 299 300 302 303 304 305 306
+#                271 272 273 274 275 276 277 278 279 280 281 283 284 285 286 287 288 289 290 291 \
+#                292 293 294 295 296 297 298 299 300 302 303 304 305 306
 
 # Validation polygon test, mem=8GB, walltime=0:45:00, jobfs=1GB
 # for polygon in 48 269 143 39 256 300 136 33 78 139 152
@@ -29,14 +29,15 @@ do
     #PBS -o PBS_output/NIDEM_${polygon}.out\n\
     #PBS -e PBS_output/NIDEM_${polygon}.err\n\
     #PBS -P r78\n\
-    #PBS -q normal\n\
-    #PBS -l walltime=1:00:00\n\
-    #PBS -l mem=16GB\n\
+    #PBS -q express\n\
+    #PBS -l walltime=24:00:00\n\
+    #PBS -l mem=64GB\n\
     #PBS -l jobfs=2GB\n\
     #PBS -l ncpus=1\n\
     #PBS -l wd\n\
     module use /g/data/v10/public/modules/modulefiles\n\
     module load dea\n\
+    module load otps\n\
     python /g/data/r78/rt1527/nidem/NIDEM_generation.py $polygon"
 
     echo -e ${PBS} | qsub

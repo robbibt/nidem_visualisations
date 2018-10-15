@@ -7,23 +7,53 @@
 # Intertidal Extents Model (ITEM v2.0) and median tidal elevations for each tidal interval, computes elevations at
 # interval boundaries, extracts contours around each tidal interval, and then interpolates between these contours
 # using TIN/Delaunay triangulation linear interpolation. This interpolation method preserves the tidal interval
-# boundaries of ITEM v2.0. NIDEM consists of several output files:
+# boundaries of ITEM v2.0. NIDEM consists of several output datasets:
 #
-# 1. Filtered NIDEM rasters (`NIDEM_dem_XXX.tif`) with elevations in metre units relative to Mean Sea Level that have
-#    been cleaned by masking out cells included in the below mask layers. This is the primary output product, and is
-#    expected to be the default product used for most applications.
-# 2. Unfiltered NIDEM rasters (`NIDEM_unfiltered_XXX.tif`) with elevations in metres relative to Mean Sea Level.
-# 3. Mask rasters (`NIDEM_mask_XXX.tif`) that flag cells with terrestrial elevations greater than 25 m (value=1),
-#    sub-tidal pixels deeper than -25 m (value=2), and ITEM confidence NDWI standard deviation greater than 0.25
-#    (value=3). These masks were used to filter the output NIDEM layers.
-# 4. Uncertainty rasters (`NIDEM_uncertainty_XXX.tif`) providing a represents a measure of the uncertainty (not to
-#    be confused with accuracy) of NIDEM elevations in m units for each pixel.
-# 5. Contour line shapefiles (`NIDEM_contours_XXX.shp`) used for the interpolation. These datasets facilitate
-#    re-analysis by allowing DEMs to be generated using alternative interpolation methods.
+# 1. The NIDEM dataset (e.g. 'NIDEM_33_130.91_-12.26.tif') provides elevation in metre units relative to modelled
+#    Mean Sea Level for each pixel of intertidal terrain across the Australian coastline. The DEMs have been cleaned
+#    by masking out non-intertidal pixels and pixels where tidal processes poorly explain patterns of inundation
+#    (see NIDEM mask below). This is the primary output product, and is expected to be the default product for most
+#    applications. The dataset consists of 306 raster files corresponding to polygons of the ITEM v2.0 continental
+#    scale tidal model.
 #
-# The filtered, unfiltered, mask & uncertainty products are also exported as a single NetCDF dataset (`NIDEM_XXX.nc`).
+# 2. The unfiltered NIDEM dataset (e.g. 'NIDEM_unfiltered_33_130.91_-12.26.tif') provides un-cleaned elevation in
+#    metre units relative to modelled Mean Sea Level for each pixel of intertidal terrain across the Australian
+#    coastline. Compared to the default NIDEM product, these layers have not been filtered to remove noise,
+#    artifacts or invalid elevation values (see NIDEM mask below). This supports applying custom filtering methods
+#    to the raw NIDEM data. The dataset consists of 306 raster files corresponding to polygons of the ITEM v2.0
+#    continental scale tidal model.
+#
+# 3. The NIDEM mask dataset (e.g. 'NIDEM_mask_33_130.91_-12.26.tif') flags non-intertidal terrestrial pixels with
+#    elevations greater than 25 m (value = 1), and sub-tidal pixels with depths greater than -25 m relative to Mean
+#    Sea Level (value = 2). Pixels where tidal processes poorly explain patterns of inundation are also flagged by
+#    identifying any pixels with ITEM confidence NDWI standard deviation greater than 0.25 (value = 3). The NIDEM
+#    mask was used to filter and clean the NIDEM dataset to remove artifacts and noise (e.g. intertidal pixels in
+#    deep water or high elevations) and invalid elevation estimates caused by coastal change or poor model
+#    performance. The dataset consists of 306 raster files corresponding to polygons of the ITEM v2.0 continental
+#    scale tidal model.
+#
+# 4. The NIDEM uncertainty dataset (e.g. 'NIDEM_uncertainty_33_130.91_-12.26.tif') provides a measure of the
+#    uncertainty (not to be confused with accuracy) of NIDEM elevations in metre units for each pixel. The range
+#    of Landsat observation tide heights used to compute median tide heights for each waterline contour can vary
+#    significantly between tidal modelling polygons. To quantify this range, the standard deviation of tide heights
+#    for all Landsat images used to produce each ITEM interval and subsequent waterline contour was calculated.
+#    These values were interpolated to return an estimate of uncertainty for each individual pixel in the NIDEM
+#    datasets: larger values indicate the waterline contour was based on a composite of images with a larger range
+#    of tide heights. The dataset consists of 306 raster files corresponding to polygons of the ITEM v2.0
+#    continental scale tidal model.
+#
+# 5. The NIDEM waterline contour dataset (e.g. 'NIDEM_contours_33_130.91_-12.26.tif') provides a vector
+#    representation of the boundary of every ten percent interval of the observed intertidal range. These contours
+#    were extracted along the boundary between each ITEM v2.0 tidal interval, and assigned the median and standard
+#    deviation (see NIDEM uncertainty above) of tide heights from the ensemble of corresponding Landsat observations.
+#    These datasets facilitate re-analysis by allowing alternative interpolation methods (e.g. kriging, splines) to
+#    be used to generate DEMs from median tide heights. The dataset consists of 306 shapefiles corresponding to
+#    polygons of the ITEM v2.0 continental scale tidal model.
+#
+# The filtered, unfiltered, mask & uncertainty products are also exported as 306 combined NetCDF datasets
+# corresponding to polygons of the ITEM v2.0 continental scale tidal model (e.g. 'NIDEM_33_130.91_-12.26.nc').
 # 
-# Date: September 2018
+# Date: October 2018
 # Author: Robbi Bishop-Taylor, Steven Sagar, Leo Lymburner
 
 
@@ -82,7 +112,7 @@ def main(argv=None):
     print(os.getcwd())
 
     # Set ITEM polygon for analysis
-    polygon_id = int(argv[1])  # polygon_id = 209
+    polygon_id = int(argv[1])  # polygon_id = 33
 
     # Import configuration details from NIDEM_configuration.ini
     config = configparser.ConfigParser()
@@ -99,7 +129,6 @@ def main(argv=None):
     ausbath09_raster = config['Masking inputs']['ausbath09_raster']
     gbr30_raster = config['Masking inputs']['gbr30_raster']
     nthaus30_raster = config['Masking inputs']['nthaus30_raster']
-    manually_included_shp = config['Masking inputs']['manually_included_shp']
 
     # Print run details
     print('Processing polygon {} from {}'.format(polygon_id, item_offset_path))
@@ -117,6 +146,9 @@ def main(argv=None):
     item_ds = gdal.Open(item_filename)
     item_array = item_ds.GetRasterBand(1).ReadAsArray()
 
+    # Get coord string of polygon from ITEM array name to use for output names
+    coord_str = item_filename[-17:-4]
+
     # Extract shape, projection info and geotransform data
     yrows, xcols = item_array.shape
     prj = item_ds.GetProjection()
@@ -125,13 +157,17 @@ def main(argv=None):
     bottomright_x = upleft_x + (x_size * xcols)
     bottomright_y = upleft_y + (y_size * yrows)
 
+    # Identify valid intertidal area by selecting pixels between the lowest and highest ITEM intervals. This is
+    # subsequently used to restrict the extent of interpolated elevation data to match the input ITEM polygons.
+    valid_intertidal_extent = np.where((item_array > 0) & (item_array < 9), 1, 0)
+
     # Convert datatype to float to allow assigning nodata -6666 values to NaN
     item_array = item_array.astype('float32')
     item_array[item_array == -6666] = np.nan
 
-    # First, identify areas to be filled by dilating non-NaN pixels by one pixel (i.e. ensuring vertical, horizontal
+    # First, identify areas to be filled by dilating non-NaN pixels by two pixels (i.e. ensuring vertical, horizontal
     # and diagonally adjacent pixels are filled):
-    dilated_mask = nd.morphology.binary_dilation(~np.isnan(item_array), iterations=1)
+    dilated_mask = nd.morphology.binary_dilation(~np.isnan(item_array), iterations=2)
 
     # For every pixel, identify the indices of the nearest pixel with data (i.e. data pixels will return their own
     # indices; nodata pixels will return the indices of the nearest data pixel). This output can be used to index
@@ -180,7 +216,8 @@ def main(argv=None):
                                    ds_array=item_array,
                                    ds_crs='EPSG:3577',
                                    ds_affine=geotrans,
-                                   output_shp='output_data/contour/NIDEM_contours_{}.shp'.format(polygon_id),
+                                   output_shp=f'output_data/shapefile/nidem_contours/'
+                                              f'NIDEM_contours_{polygon_id}_{coord_str}.shp',
                                    attribute_data={'elev_m': contour_offsets, 'uncert_m': uncertainty_array},
                                    attribute_dtypes={'elev_m': 'float:9.2', 'uncert_m': 'float:9.2'})
 
@@ -239,9 +276,6 @@ def main(argv=None):
     #    for Northern Australia (http://pid.geoscience.gov.au/dataset/ga/121620).
     # 3. Pixels with high ITEM confidence NDWI standard deviation (i.e. areas where inundation patterns are not driven
     #    by tidal influences). This mask is computed using ITEM v2.0 confidence layer data from DEA.
-    #
-    # In a small number of locations where these masks remove valid data, a manual shapefile mask is used to preserve
-    # these pixels in the final datasets.
 
     # Import ITEM confidence NDWI standard deviation array for polygon
     conf_filename = glob.glob('{}/ITEM_STD_{}_*.tif'.format(item_conf_path, polygon_id))[0]
@@ -271,13 +305,6 @@ def main(argv=None):
                                             output_raster='scratch/temp.tif',
                                             nodata_val=-9999)
 
-    # Import shapefile of areas to manually include in the output datasets and convert to
-    # raster with same cell size and projection of NIDEM
-    manually_included = rasterize_vector(input_data=manually_included_shp,
-                                         cols=xcols, rows=yrows,
-                                         geo_transform=geotrans,
-                                         projection=prj).astype(np.bool)
-
     # Convert raster datasets to arrays
     conf_array = conf_ds.GetRasterBand(1).ReadAsArray()
     srtm30_array = srtm30_reproj.GetRasterBand(1).ReadAsArray()
@@ -302,17 +329,12 @@ def main(argv=None):
     nidem_mask[bathy_mask] = 2
     nidem_mask[conf_mask] = 3
 
-    # Set manually included pixels to -9999 to prevent masking
-    nidem_mask[manually_included] = -9999
-
     ################################
     # Export output NIDEM geoTIFFs #
     ################################
 
     # Because the lowest and highest ITEM intervals (0 and 9) cannot be correctly interpolated as they have no lower
-    # or upper bounds, the filtered NIDEM is constrained to valid intertidal terrain (ITEM intervals 1-8). Here we
-    # identify valid intertidal area by selecting pixels between the lowest and highest ITEM intervals:
-    valid_intertidal_extent = np.where((item_array > 0) & (item_array < 9), 1, 0)
+    # or upper bounds, the NIDEM layers are constrained to valid intertidal terrain (ITEM intervals 1-8).
     nidem_uncertainty = np.where(valid_intertidal_extent, interp_uncert_array, -9999).astype(np.float32)
     nidem_unfiltered = np.where(valid_intertidal_extent, interp_elev_array, -9999).astype(np.float32)
 
@@ -321,44 +343,47 @@ def main(argv=None):
     # the unfiltered layer by NIDEM mask to produce a filtered NIDEM layer:
     nidem_filtered = np.where(nidem_mask > 0, -9999, nidem_unfiltered).astype(np.float32)
 
-    # Export unfiltered NIDEM as a GeoTIFF
-    print('Exporting unfiltered NIDEM for polygon {}'.format(polygon_id))
-    array_to_geotiff(fname='output_data/geotiff/dem_unfiltered/NIDEM_unfiltered_{}.tif'.format(polygon_id),
-                     data=nidem_unfiltered,
-                     geo_transform=geotrans,
-                     projection=prj,
-                     nodata_val=-9999)
-
     # Export filtered NIDEM as a GeoTIFF
-    print('Exporting filtered NIDEM for polygon {}'.format(polygon_id))
-    array_to_geotiff(fname='output_data/geotiff/dem/NIDEM_dem_{}.tif'.format(polygon_id),
+    print(f'Exporting filtered NIDEM for polygon {polygon_id}')
+    array_to_geotiff(fname=f'output_data/geotiff/nidem/NIDEM_{polygon_id}_{coord_str}.tif',
                      data=nidem_filtered,
                      geo_transform=geotrans,
                      projection=prj,
                      nodata_val=-9999)
 
+    # Export unfiltered NIDEM as a GeoTIFF
+    print(f'Exporting unfiltered NIDEM for polygon {polygon_id}')
+    array_to_geotiff(fname=f'output_data/geotiff/nidem_unfiltered/NIDEM_unfiltered_{polygon_id}_{coord_str}.tif',
+                     data=nidem_unfiltered,
+                     geo_transform=geotrans,
+                     projection=prj,
+                     nodata_val=-9999)
+
     # Export NIDEM uncertainty layer as a GeoTIFF
-    print('Exporting NIDEM uncertainty for polygon {}'.format(polygon_id))
-    array_to_geotiff(fname='output_data/geotiff/uncertainty/NIDEM_uncertainty_{}.tif'.format(polygon_id),
+    print(f'Exporting NIDEM uncertainty for polygon {polygon_id}')
+    array_to_geotiff(fname=f'output_data/geotiff/nidem_uncertainty/NIDEM_uncertainty_{polygon_id}_{coord_str}.tif',
                      data=nidem_uncertainty,
                      geo_transform=geotrans,
                      projection=prj,
                      nodata_val=-9999)
 
     # Export NIDEM mask as a GeoTIFF
-    print('Exporting NIDEM mask for polygon {}'.format(polygon_id))
-    array_to_geotiff(fname='output_data/geotiff/mask/NIDEM_mask_{}.tif'.format(polygon_id),
+    print(f'Exporting NIDEM mask for polygon {polygon_id}')
+    array_to_geotiff(fname=f'output_data/geotiff/nidem_mask/NIDEM_mask_{polygon_id}_{coord_str}.tif',
                      data=nidem_mask.astype(int),
                      geo_transform=geotrans,
                      projection=prj,
+                     dtype=gdal.GDT_Int16,
                      nodata_val=-9999)
+
+
 
     ######################
     # Export NetCDF data #
     ######################
 
     # If netcdf file already exists, delete it
-    filename_netcdf = 'output_data/netcdf/NIDEM_{}.nc'.format(polygon_id)
+    filename_netcdf = f'output_data/netcdf/NIDEM_{polygon_id}_{coord_str}.nc'
 
     if os.path.exists(filename_netcdf):
         os.remove(filename_netcdf)
@@ -367,184 +392,101 @@ def main(argv=None):
     x_coords = netcdf_writer.netcdfy_coord(np.linspace(upleft_x + 12.5, bottomright_x - 12.5, num=xcols))
     y_coords = netcdf_writer.netcdfy_coord(np.linspace(upleft_y - 12.5, bottomright_y + 12.5, num=yrows))
 
+    # Define output compression parameters
+    comp_params = dict(zlib=True, complevel=9, shuffle=True, fletcher32=True)
+
     # Create new dataset
     output_netcdf = create_netcdf_storage_unit(filename=filename_netcdf,
                                                crs=CRS('EPSG:3577'),
                                                coordinates={'x': Coordinate(x_coords, 'metres'),
                                                             'y': Coordinate(y_coords, 'metres')},
-                                               variables={'dem': Variable(dtype=np.dtype('float32'),
-                                                                          nodata=-9999,
-                                                                          dims=('y', 'x'),
-                                                                          units='metres'),
-                                                          'dem_unfiltered': Variable(dtype=np.dtype('float32'),
-                                                                                     nodata=-9999,
-                                                                                     dims=('y', 'x'),
-                                                                                     units='metres'),
-                                                          'uncertainty': Variable(dtype=np.dtype('float32'),
-                                                                                  nodata=-9999,
-                                                                                  dims=('y', 'x'),
-                                                                                  units='metres'),
-                                                          'mask': Variable(dtype=np.dtype('int16'),
-                                                                           nodata=-9999,
-                                                                           dims=('y', 'x'),
-                                                                           units='metres')},  # todo: fix these units
-                                               variable_params={'dem': {}})
+                                               variables={'nidem': Variable(dtype=np.dtype('float32'),
+                                                                            nodata=-9999,
+                                                                            dims=('y', 'x'),
+                                                                            units='metres'),
+                                                          'nidem_unfiltered': Variable(dtype=np.dtype('float32'),
+                                                                                       nodata=-9999,
+                                                                                       dims=('y', 'x'),
+                                                                                       units='metres'),
+                                                          'nidem_uncertainty': Variable(dtype=np.dtype('float32'),
+                                                                                        nodata=-9999,
+                                                                                        dims=('y', 'x'),
+                                                                                        units='metres'),
+                                                          'nidem_mask': Variable(dtype=np.dtype('int16'),
+                                                                                 nodata=-9999,
+                                                                                 dims=('y', 'x'),
+                                                                                 units='1')},
+                                               variable_params={'nidem': comp_params,
+                                                                'nidem_unfiltered': comp_params,
+                                                                'nidem_uncertainty': comp_params,
+                                                                'nidem_mask': comp_params})
 
     # dem: assign data and set variable attributes
-    output_netcdf['dem'][:] = netcdf_writer.netcdfy_data(nidem_filtered)
-    output_netcdf['dem'].valid_range = [-25.0, 25.0]
-    output_netcdf['dem'].standard_name = 'height_above_mean_sea_level'
-    output_netcdf['dem'].coverage_content_type = 'modelResult'
-    output_netcdf['dem'].long_name = 'NIDEM filtered by ITEM confidence (< 0.25 NDWI SD), ' \
-                                     'bathymetry (> -25 m) and elevation (< 25 m)'
+    output_netcdf['nidem'][:] = netcdf_writer.netcdfy_data(nidem_filtered)
+    output_netcdf['nidem'].valid_range = [-25.0, 25.0]
+    output_netcdf['nidem'].standard_name = 'height_above_mean_sea_level'
+    output_netcdf['nidem'].coverage_content_type = 'modelResult'
+    output_netcdf['nidem'].long_name = 'National Intertidal Digital Elevation Model (NIDEM): elevation data in metre ' \
+                                       'units relative to mean sea level for each pixel of intertidal terrain across ' \
+                                       'the Australian coastline. Cleaned by masking out non-intertidal pixels' \
+                                       'and pixels where tidal processes poorly explain patterns of inundation.'
 
     # dem_unfiltered: assign data and set variable attributes
-    output_netcdf['dem_unfiltered'][:] = netcdf_writer.netcdfy_data(nidem_unfiltered)
-    output_netcdf['dem_unfiltered'].standard_name = 'height_above_mean_sea_level'
-    output_netcdf['dem_unfiltered'].coverage_content_type = 'modelResult'
-    output_netcdf['dem_unfiltered'].long_name = 'NIDEM unfiltered data'
+    output_netcdf['nidem_unfiltered'][:] = netcdf_writer.netcdfy_data(nidem_unfiltered)
+    output_netcdf['nidem_unfiltered'].standard_name = 'height_above_mean_sea_level'
+    output_netcdf['nidem_unfiltered'].coverage_content_type = 'modelResult'
+    output_netcdf['nidem_unfiltered'].long_name = 'NIDEM unfiltered: uncleaned elevation data in metre units ' \
+                                                  'relative to mean sea level for each pixel of intertidal terrain ' \
+                                                  'across the Australian coastline. Compared to the default NIDEM ' \
+                                                  'product, these layers have not been filtered to remove noise, ' \
+                                                  'artifacts or invalid elevation values.'
 
     # uncertainty: assign data and set variable attributes
-    output_netcdf['uncertainty'][:] = netcdf_writer.netcdfy_data(nidem_uncertainty)
-    output_netcdf['uncertainty'].standard_name = 'height_above_mean_sea_level'
-    output_netcdf['uncertainty'].coverage_content_type = 'modelResult'
-    output_netcdf['uncertainty'].long_name = 'NIDEM uncertainty'
+    output_netcdf['nidem_uncertainty'][:] = netcdf_writer.netcdfy_data(nidem_uncertainty)
+    output_netcdf['nidem_uncertainty'].standard_name = 'height_above_mean_sea_level'
+    output_netcdf['nidem_uncertainty'].coverage_content_type = 'modelResult'
+    output_netcdf['nidem_uncertainty'].long_name = 'NIDEM uncertainty: provides a measure of the uncertainty (not ' \
+                                                   'accuracy) of NIDEM elevations in metre units for each pixel. ' \
+                                                   'Represents the standard deviation of tide heights of all Landsat ' \
+                                                   'observations used to produce each ITEM 2.0 ten percent tidal ' \
+                                                   'interval.'
 
     # mask: assign data and set variable attributes
-    output_netcdf['mask'][:] = netcdf_writer.netcdfy_data(nidem_mask)
-    output_netcdf['mask'].valid_range = [1, 3]
-    output_netcdf['mask'].coverage_content_type = 'qualityInformation'
-    output_netcdf['mask'].long_name = 'NIDEM mask flagging terrestrial pixels with elevations greater than 25 m ' \
-                                      '(value = 1), sub-tidal pixels with depths lower than -25 m (value = 2), and ' \
-                                      'ITEM confidence NDWI standard deviation greater than 0.25 (value = 3)'
+    output_netcdf['nidem_mask'][:] = netcdf_writer.netcdfy_data(nidem_mask)
+    output_netcdf['nidem_mask'].valid_range = [1, 3]
+    output_netcdf['nidem_mask'].coverage_content_type = 'qualityInformation'
+    output_netcdf['nidem_mask'].long_name = 'NIDEM mask: flags non-intertidal terrestrial pixels with elevations ' \
+                                            'greater than 25 m (value = 1), sub-tidal pixels with depths greater ' \
+                                            'than -25 m (value = 2), and pixels where tidal processes poorly ' \
+                                            'explain patterns of inundation (value = 3).'
 
     # Add global attributes
-    output_netcdf.title = 'National Intertidal Digital Elevation Model (NIDEM) 25m v 0.1.0'
+    output_netcdf.title = 'National Intertidal Digital Elevation Model 25m 1.0.0'
     output_netcdf.institution = 'Commonwealth of Australia (Geoscience Australia)'
-    output_netcdf.product_version = '0.1.0'
+    output_netcdf.product_version = '1.0.0'
     output_netcdf.license = 'CC BY Attribution 4.0 International License'
     output_netcdf.time_coverage_start = '1986-01-01'
     output_netcdf.time_coverage_end = '2016-12-31'
     output_netcdf.cdm_data_type = 'Grid'
     output_netcdf.contact = 'clientservices@ga.gov.au'
     output_netcdf.publisher_email = 'earth.observation@ga.gov.au'
-    output_netcdf.source = 'OTPS TPX08 Atlas'
+    output_netcdf.source = 'ITEM v2.0'
     output_netcdf.keywords = 'Tidal, Topography, Landsat, Elevation, Intertidal, MSL, ITEM, NIDEM, DEM, Coastal'
-    output_netcdf.summary = "The National Intertidal Digital Elevation Model (NIDEM) is a continental-scale " \
-                            "dataset providing a three-dimensional representation of Australia's exposed " \
-                            "intertidal zone (the land between the observed highest and lowest tide) at 25 metre " \
-                            "resolution. The model is based on the full 30 year archive of Landsat satellite data " \
-                            "managed within the Digital Earth Australia (DEA) platform that provides spatially " \
-                            "and spectrally calibrated earth observation data to enable time-series analysis on a " \
-                            "per-pixel basis across the entire Australian continent. NIDEM builds upon the " \
-                            "improved tidal modelling framework of the Intertidal Extents Model v2.0 (ITEM), " \
-                            "allowing each satellite observation in the 30 year time series to be more accurately " \
-                            "associated with modelled tide heights from a multi-resolution global tidal model " \
-                            "(OTPS TPX08). Using these modelled tide heights and a spatially consistent and " \
-                            "automated triangulated irregular network (TIN) interpolation procedure, each pixel " \
-                            "of exposed intertidal extent in ITEM was assigned an absolute elevation in metre " \
-                            "units relative to mean sea level."
+    output_netcdf.summary = "The National Intertidal Digital Elevation Model (NIDEM) product is a continental-scale " \
+                            "dataset providing continuous elevation data for Australia's exposed intertidal zone. " \
+                            "NIDEM provides the first three-dimensional representation of Australia's intertidal " \
+                            "zone (excluding off-shore Territories and intertidal mangroves) at 25 m spatial " \
+                            "resolution, addressing a key gap between the availability of sub-tidal bathymetry and " \
+                            "terrestrial elevation data. NIDEM was generated by combining global tidal modelling " \
+                            "with a 30-year time series archive of spatially and spectrally calibrated Landsat " \
+                            "satellite data managed within the Digital Earth Australia (DEA) platform. NIDEM " \
+                            "complements existing intertidal extent products, and provides data to support a new " \
+                            "suite of use cases that require a more detailed understanding of the three-dimensional " \
+                            "topography of the intertidal zone, such as hydrodynamic modelling, coastal risk " \
+                            "management and ecological habitat mapping."
 
     # Close dataset
     output_netcdf.close()
-
-
-def rasterize_vector(input_data, cols, rows, geo_transform, projection,
-                     field=None, raster_path=None, array_dtype=gdal.GDT_UInt16):
-
-    """
-    Rasterize a vector file and return an array with values for cells that occur within the
-    shapefile. Can be used to obtain a binary array (shapefile vs no shapefile), or can create
-    an array containing values from a shapefile field. If 'raster_path' is provided, the
-    resulting array can also be output as a geotiff raster.
-
-    This function requires dimensions, projection data (in 'WKT' format) and geotransform info
-    ('(upleft_x, x_size, x_rotation, upleft_y, y_rotation, y_size)') for the output array.
-
-    Last modified: April 2018
-    Author: Robbi Bishop-Taylor
-
-    :param input_data:
-        Input shapefile path or preloaded GDAL/OGR layer. This must be in the same
-        projection system as the desired output raster (i.e. same as the 'projection'
-        parameter below)
-
-    :param cols:
-        Desired width of output array in columns. This can be obtained from
-        an existing array using '.shape[0]'
-
-    :param rows:
-        Desired height of output array in rows. This can be obtained from
-        an existing array using '.shape[1]'
-
-    :param geo_transform:
-        Geotransform for output raster; e.g. "(upleft_x, x_size, x_rotation,
-        upleft_y, y_rotation, y_size)"
-
-    :param projection:
-        Projection for output raster (in "WKT" format). This must be the same as the
-        input shapefile's projection system (i.e. same projection as used by 'input_data')
-
-    :param field:
-        Shapefile field to rasterize values from. If None (default), this assigns a
-        value of 1 to all array cells within the shapefile, and 0 to areas outside
-        the shapefile
-
-    :param raster_path:
-        If a path is supplied, the resulting array will also be output as a geotiff raster.
-        (defaults to None, which returns only the output array and does not write a file)
-
-    :param array_dtype:
-        Optionally set the dtype of the output array. This defaults to integers
-        (gdal.GDT_UInt16), and should only be changed if rasterising float values from a
-        shapefile field
-    :return:
-        A 'row x col' array containing values from vector (if Field is supplied), or binary
-        values (1=shapefile data, 0=no shapefile)
-
-    """
-
-    # If input data is a string, import as shapefile layer
-    if isinstance(input_data, str):
-        # Open vector with gdal
-        data_source = gdal.OpenEx(input_data, gdal.OF_VECTOR)
-        input_data = data_source.GetLayer(0)
-
-    # If raster path supplied, save rasterized file as a geotiff
-    if raster_path:
-
-        # Set up output raster
-        print('Exporting raster to {}'.format(raster_path))
-        driver = gdal.GetDriverByName('GTiff')
-        target_ds = driver.Create(raster_path, cols, rows, 1, array_dtype)
-
-    else:
-
-        # If no raster path, create raster as memory object
-        driver = gdal.GetDriverByName('MEM')  # In memory dataset
-        target_ds = driver.Create('', cols, rows, 1, array_dtype)
-
-    # Set geotransform and projection
-    target_ds.SetGeoTransform(geo_transform)
-    target_ds.SetProjection(projection)
-
-    # Rasterize shapefile and extract array using field if supplied; else produce binary array
-    if field:
-
-        # Rasterise by taking attributes from supplied
-        gdal.RasterizeLayer(target_ds, [1], input_data, options=["ATTRIBUTE=" + field])
-
-    else:
-
-        # Rasterise into binary raster (1=shapefile data, 0=no shapefile)
-        gdal.RasterizeLayer(target_ds, [1], input_data)
-
-        # Return array from raster
-    band = target_ds.GetRasterBand(1)
-    out_array = band.ReadAsArray()
-    target_ds = None
-
-    return out_array
 
 
 def array_to_geotiff(fname, data, geo_transform, projection,
@@ -587,7 +529,7 @@ def array_to_geotiff(fname, data, geo_transform, projection,
 
     # Create raster of given size and projection
     rows, cols = data.shape
-    dataset = driver.Create(fname, cols, rows, 1, dtype)
+    dataset = driver.Create(fname, cols, rows, 1, dtype, ['COMPRESS=DEFLATE'])
     dataset.SetGeoTransform(geo_transform)
     dataset.SetProjection(projection)
 
