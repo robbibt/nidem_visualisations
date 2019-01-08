@@ -8,4 +8,4 @@ NormantonToKaurumba,//nas/cds/internal/physiography/topographic_relief/elevation
 Fraser,//nas/cds/internal/physiography/topographic_relief/elevation/data/statedatasets/qld/FraserCoast2010/z56/2010/Mass_Points/LAS/Tiles_1k_1k/,Fraser-Coast-2010-C1-AHD_{}_56_0001_0001,"152.87081,-25.50751","152.93960,-25.60194","152.89980,-25.57000",2009-08-24 00:00:00,56,raw_data/validation/LIDAR_dems/QLD/z56/qldz56.tif,tidal_flat
 SAcoastal,M:/RobbiBT/LiDAR_validation/SA_Coastal_LiDAR/NorthAdelaide/LAS/,SAcoastal2011-C2-AHD_{}_54_0001_0001,"138.334724,-34.566789","138.449013,-34.680627","138.368152,-34.625063",2011-09-02 00:00:00,54,raw_data/validation/LIDAR_dems/SA/z54/saz54.tif,tidal_flat
 Launceston,NA,NA,"146.73713,-41.04967","146.83075,-41.12098","146.78075,-41.85098",NA,55,raw_data/validation/LIDAR_dems/TAS/tasz55.tif,tidal_flat
-Robbins,NA,NA,"144.77569,-40.67712","145.16972,-40.84563","145.45972,-40.75563",NA,55,raw_data/validation/LIDAR_dems/TAS/tasz55.tif,beach
+Robbins,NA,NA,"144.77569,-40.67712","145.05675,-40.80737","144.96580,-40.73850",NA,55,raw_data/validation/LIDAR_dems/TAS/tasz55.tif,beach
