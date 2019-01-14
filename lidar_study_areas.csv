@@ -9,4 +9,4 @@ Fraser,//nas/cds/internal/physiography/topographic_relief/elevation/data/stateda
 SAcoastal,M:/RobbiBT/LiDAR_validation/SA_Coastal_LiDAR/NorthAdelaide/LAS/,SAcoastal2011-C2-AHD_{}_54_0001_0001,"138.334724,-34.566789","138.449013,-34.680627","138.368152,-34.625063",2011-09-02 00:00:00,54,raw_data/validation/LIDAR_dems/SA/z54/saz54.tif,tidal_flat
 Launceston,NA,NA,"146.73713,-41.04967","146.83075,-41.12098","146.78075,-41.85098",NA,55,raw_data/validation/LIDAR_dems/TAS/tasz55.tif,tidal_flat
 Robbins,NA,NA,"144.77569,-40.67712","145.05675,-40.80737","144.96580,-40.73850",NA,55,raw_data/validation/LIDAR_dems/TAS/tasz55.tif,sandy_beach
-ShoalInlet,NA,NA,"146.73025741,-38.65132","146.80500, -38.69423","146.75141,-38.67806",NA,54,raw_data/validation/LIDAR_dems/National/nationalz54ag.tif,tidal_flat
+ShoalInlet,NA,NA,"146.73025741,-38.65132","146.80500, -38.69423","146.75141,-38.67806",NA,54,raw_data/validation/LIDAR_dems/ELVIS/ShoalInlet/CLIP.tif,tidal_flat
