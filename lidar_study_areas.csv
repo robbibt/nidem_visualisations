@@ -12,3 +12,9 @@ Robbins,NA,NA,"144.77569,-40.67712","145.05675,-40.80737","144.96580,-40.73850",
 ShoalInlet,NA,NA,"146.73026,-38.65132","146.80500, -38.69423","146.75141,-38.67806",NA,54,raw_data/validation/LIDAR_dems/ELVIS/ShoalInlet/CLIP.tif,tidal_flat
 WesternPort,NA,NA,"145.26148,-38.38818","145.35062,-38.43080","145.29718,-38.41117",NA,54,raw_data/validation/LIDAR_dems/ELVIS/WesternPort/CLIP.tif,sandy_beach
 Kilcunda,NA,NA,"145.44655543,-38.5447959018","145.484678061,-38.5591393369","145.465007226,-38.5516863078",NA,54,raw_data/validation/LIDAR_dems/ELVIS/WesternPort/CLIP.tif,rocky_reef
+Ulverstone,NA,NA,"146.081239015, -41.112767507","146.11575991, -41.1233988364","146.151011703, -41.1430897769",NA,55,raw_data/validation/LIDAR_dems/TAS/tasz55.tif,rocky_reef
+
+
+
+
+
