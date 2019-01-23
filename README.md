@@ -124,6 +124,30 @@ To assess the accuracy of NIDEM, we compared modelled elevations against three i
 ![NIDEM validation](bishoptaylor_2019/Revised_Figure6_validationdensity.png "NIDEM validation")
 ![NIDEM sites](bishoptaylor_2019/Revised_Figure1_studyarea.png "NIDEM sites")
 
+| Validation site     | Upper left extent      | Lower right extent     | Intertidal type | Validation type | N     | Spearmans ? | Pearsons ? | RMSE |
+|---------------------|------------------------|------------------------|-----------------|-----------------|-------|--------------|-------------|------|
+| Robbins Island      | 144.77569 E 40.67712 S | 145.05675 E 40.80737 S | Sandy beach     | Lidar           | 39142 | 0.67         | 0.78        | 0.57 |
+| Isaac               | 149.41409 E 21.70398 S | 149.49239 E 21.84647 S | Sandy beach     | Lidar           | 33756 | 0.98         | 0.97        | 0.29 |
+| Mackay              | 149.18434 E 21.13746 S | 149.24215 E 21.24583 S | Sandy beach     | Lidar           | 31863 | 0.96         | 0.94        | 0.34 |
+| Western Port        | 145.26148 E 38.38818 S | 145.35062 E 38.43080 S | Sandy beach     | Lidar           | 8341  | 0.92         | 0.91        | 0.18 |
+| Rockhampton         | 149.88750 E 22.06129 S | 149.93865 E 22.14870 S | Sandy beach     | Lidar           | 8077  | 0.96         | 0.95        | 0.33 |
+| North Adelaide      | 138.33472 E 34.56679 S | 138.44901 E 34.68063 S | Tidal flat      | Lidar           | 31267 | 0.69         | 0.38        | 0.5  |
+| Fraser              | 152.87081 E 25.50751 S | 152.93960 E 25.60194 S | Tidal flat      | Lidar           | 20553 | 0.76         | 0.81        | 0.31 |
+| Kaurumba            | 140.74169 E 17.41546 S | 140.91024 E 17.51980 S | Tidal flat      | Lidar           | 15217 | 0.92         | 0.88        | 0.27 |
+| Whitsunday          | 147.68246 E 19.77447 S | 147.79755 E 19.84846 S | Tidal flat      | Lidar           | 13707 | 0.92         | 0.96        | 0.19 |
+| Launceston          | 146.73713 E 41.04967 S | 146.83075 E 41.12098 S | Tidal flat      | Lidar           | 8029  | 0.87         | 0.88        | 0.33 |
+| Shoal Inlet         | 146.73026 E 38.65132 S | 146.80500 E 38.69423 S | Tidal flat      | Lidar           | 5630  | 0.77         | 0.7         | 0.3  |
+| Gladstone           | 151.26893 E 23.84394 S | 151.33706 E 23.89089 S | Tidal flat      | Lidar           | 4699  | 0.88         | 0.78        | 0.66 |
+| Darwin              | 130.78231 E 12.43566 S | 130.85607 E 12.37220 S | Tidal flat      | RTK GPS         | 274   | 0.93         | 0.9         | 0.63 |
+| Moreton Bay         | 153.03747 E 27.51057 S | 153.23696 E 27.27759 S | Tidal flat      | RTK GPS         | 130   | 0.86         | 0.87        | 0.17 |
+| Ulverstone          | 146.08124 E 41.11277 S | 146.11576 E 41.12340 S | Rocky shore     | Lidar           | 575   | 0.89         | 0.91        | 0.46 |
+| Kilcunda            | 145.44656 E 38.54480 S | 145.48469 E 38.55914 S | Rocky shore     | Lidar           | 323   | 0.63         | 0.49        | 0.61 |
+| East Tallon         | 123.12726 E 16.40046 S | 123.14075 E 16.41921 S | Rocky shore     | Multibeam       | 557   | 0.54         | 0.6         | 1.22 |
+| Bathurst and Irvine | 123.51438 E 16.02877 S | 123.56828 E 16.05869 S | Rocky shore     | Multibeam       | 443   | 0.58         | 0.22        | 6.53 |
+| Tallon west         | 123.11392 E 16.40050 S | 123.12354 E 16.41947 S | Rocky shore     | Multibeam       | 283   | 0.8          | 0.54        | 0.86 |
+| Waterflow           | 123.06432 E 16.42213 S | 123.08308 E 16.43144 S | Rocky shore     | Multibeam       | 85    | 0.86         | 0.59        | 1.85 |
+| Cockatoo Island     | 123.59018 E 16.08976 S | 123.60608 E 16.10020 S | Rocky reef      | Multibeam       | 33    | -0.26        | -0.19       | 0.46 |
+
 ### Limitations
 
 NIDEM covers the exposed intertidal zone which excludes intertidal vegetation communities such as mangroves.
