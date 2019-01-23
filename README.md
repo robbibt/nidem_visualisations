@@ -1,6 +1,6 @@
 # National Intertidal Digital Elevation Model (NIDEM)
 
-**Date:** October 2018
+**Date:** January 2019
 
 **Author:** Robbi Bishop-Taylor, Steven Sagar, Leo Lymburner
 
@@ -30,7 +30,7 @@ NIDEM complements existing intertidal extent products, and provides data that su
 
 The product differs from previous methods used to model the elevation of the intertidal zone which have predominately focused on extracting waterlines from a limited selection of satellite images using manual digitisation and visual interpretation (e.g. Chen and Rau 1998; Zhao et al. 2008; Liu et al. 2013; Chen et al. 2016). This manual process introduces subjectivity, is impractical to apply at a continental-scale, and has inherent restrictions based on the availability of high quality image data at appropriate tidal stages. By developing an automated approach to generating satellite-derived elevation data based on a 30 year time series of observations managed within the Digital Earth Australia (DEA) platform, we were able to produce the first continental-scale three-dimensional model of the intertidal zone.
 
-## Running NIDEM
+## Running NIDEM code
 
 To generate NIDEM datasets:
 
@@ -122,6 +122,7 @@ Attributes:
 To assess the accuracy of NIDEM, we compared modelled elevations against three independent elevation and bathymetry validation datasets: the DEM of Australia derived from LiDAR 5 Metre Grid (Geoscience Australia, 2015), elevation data collected from a Real Time Kinematic (RTK) GPS survey (HydroSurvey Australia, 2009), and 1.0 m resolution multibeam bathymetry surveys (Solihuddin et al., 2016). We assessed accuracy across three distinct intertidal environments: sandy beaches and shores, tidal flats, and rocky shores and reefs:
 
 ![NIDEM validation](bishoptaylor_2019/Revised_Figure6_validationdensity.png "NIDEM validation")
+![NIDEM sites](bishoptaylor_2019/Revised_Figure1_studyarea.png "NIDEM sites")
 
 ### Limitations
 
