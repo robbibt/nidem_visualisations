@@ -8,7 +8,7 @@
 # each point was acquired. These non-inundated points (representing intertidal and terrestrial locations)
 # are then exported as a single .csv.
 #
-# Date: October 2018
+# Date: January 2019
 # Author: Robbi Bishop-Taylor, Steven Sagar, Leo Lymburner
 
 
@@ -114,51 +114,71 @@ os.chdir('/g/data/r78/rt1527/nidem')
 study_areas_df = pd.read_csv('lidar_study_areas.csv', index_col=0)
 study_areas = study_areas_df.to_dict('index')
 
-for name in ['Fraser', 'Gladstone', 'Whitsunday', 'Rockhampton', 'Isaac', 'Mackay', 'Kaurumba']:
+# Iterate through each study area
+# for name in study_areas.keys():
+for name in ['SAcoastal']:
 
-    ###############
-    # Import data #
-    ###############
+    # Read in study area details
+    input_location = study_areas[name]['input_loc']
 
-    # Iterate through each file and merge list of dataframes into single dataframe
-    point_files = glob.glob('raw_data/validation/*{}*.csv'.format(name))
-    df_list = [pd.read_csv(input_file, sep=",") for input_file in point_files]
-    points_df = pd.concat(df_list)
+    # Test if tidal tagging is required for area
+    if not pd.isnull(input_location):
 
+        print(name)
 
-    ################
-    # Convert time #
-    ################
+        ###############
+        # Import data #
+        ###############
 
-    # Conert GPS time to datetime, and round to nearest minute to reduce calls to tide_predict
-    ref_date = dt.datetime.strptime(study_areas[name]['ref_date'], '%Y-%m-%d %H:%M:%S')
-    points_df['point_time'] = points_df['point_time'].apply(lambda ts: gps_sotw_utc(ts, ref_date))
-    points_df['point_timeagg'] = points_df['point_time'].dt.round('1min')  # 30min
+        # Iterate through each file and merge list of dataframes into single dataframe
+        point_files = glob.glob('raw_data/validation/*{}*.csv'.format(name))
+        df_list = [pd.read_csv(input_file, sep=",") for input_file in point_files]
+        points_df = pd.concat(df_list)
 
 
-    #################
-    # Compute tides #
-    #################
+        ################
+        # Convert time #
+        ################
 
-    # Group into unique times and locations, create TimePoints and model tides
-    grouped_series = points_df.groupby(['tidepoint_lat', 'tidepoint_lon', 'point_timeagg'])
-    grouped_series = grouped_series.apply(lambda row: TimePoint(lon=row.iloc[0]['tidepoint_lon'],
-                                                                lat=row.iloc[0]['tidepoint_lat'],
-                                                                timestamp=row.iloc[0]['point_timeagg']))
+        if points_df.point_time.iloc[0] < 0:
 
-    # Convert grouped data to dataframe and compute tides
-    grouped_df = grouped_series.to_frame(name='point_tidal')
-    grouped_df['point_tidal'] = [float(tp.tide_m) for tp in predict_tide(list(grouped_series))]
+            # Convert GPS time to datetime, and round to nearest minute to reduce calls to tide_predict
+            print('Time in adjusted GPS format')
+            points_df['point_time'] = points_df['point_time'].apply(lambda ts: gps_adj_utc(ts))
+            points_df['point_timeagg'] = points_df['point_time'].dt.round('1min')
 
-    # Join back into main dataframe
-    points_df = points_df.join(grouped_df, on=['tidepoint_lat', 'tidepoint_lon', 'point_timeagg'], rsuffix="_test")
+        else:
 
-    # Filter to keep only points located higher than instantaneous tide height and below max overall tideheight
-    filteredpoints_df = points_df[(points_df.point_z > (points_df.point_tidal + 0.15))] 
-    print('Discarding {} points below or at tidal height'.format(len(points_df) - len(filteredpoints_df)))
+            # Convert GPS time to datetime, and round to nearest minute to reduce calls to tide_predict
+            print('Time in GPS seconds-of-the-week format')
+            ref_date = dt.datetime.strptime(study_areas[name]['ref_date'], '%Y-%m-%d %H:%M:%S')
+            points_df['point_time'] = points_df['point_time'].apply(lambda ts: gps_sotw_utc(ts, ref_date))
+            points_df['point_timeagg'] = points_df['point_time'].dt.round('1min')
 
-    # Select output columns and export to file
-    filteredpoints_df = filteredpoints_df[['point_lon', 'point_lat', 'point_z', 'point_tidal',
-                                           'point_cat', 'point_path', 'point_time', 'point_timeagg']]
-    filteredpoints_df.to_csv('output_data/validation/output_points_{}.csv'.format(name), index=False)
+
+        #################
+        # Compute tides #
+        #################
+
+        # Group into unique times and locations, create TimePoints and model tides
+        grouped_series = points_df.groupby(['tidepoint_lat', 'tidepoint_lon', 'point_timeagg'])
+        grouped_series = grouped_series.apply(lambda row: TimePoint(lon=row.iloc[0]['tidepoint_lon'],
+                                                                    lat=row.iloc[0]['tidepoint_lat'],
+                                                                    timestamp=row.iloc[0]['point_timeagg']))
+
+        # Convert grouped data to dataframe and compute tides
+        grouped_df = grouped_series.to_frame(name='point_tidal')
+        grouped_df['point_tidal'] = [float(tp.tide_m) for tp in predict_tide(list(grouped_series))]
+
+        # Join back into main dataframe
+        points_df = points_df.join(grouped_df, on=['tidepoint_lat', 'tidepoint_lon', 'point_timeagg'], rsuffix="_test")
+
+        # Filter to keep only points located higher than instantaneous tide height and below max overall tide height
+        filteredpoints_df = points_df[(points_df.point_z > (points_df.point_tidal + 0.15))]
+        print('Discarding {} points below or at tidal height'.format(len(points_df) - len(filteredpoints_df)))
+
+        # Select output columns and export to file
+        filteredpoints_df = filteredpoints_df[['point_lon', 'point_lat', 'point_z', 'point_tidal',
+                                               'point_cat', 'point_path', 'point_time', 'point_timeagg']]
+        filteredpoints_df.to_csv('output_data/validation/output_points_{}.csv'.format(name), index=False)
 
