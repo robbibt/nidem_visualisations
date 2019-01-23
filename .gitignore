@@ -1,7 +1,0 @@
-# Ignore everything
-*QGIS/
-*scratch/
-*.gitignore~
-*.idea
-*.ipynb_checkpoints
-*__pycache__
