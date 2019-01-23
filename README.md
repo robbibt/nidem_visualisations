@@ -121,6 +121,7 @@ Attributes:
 
 To assess the accuracy of NIDEM, we compared modelled elevations against three independent elevation and bathymetry validation datasets: the DEM of Australia derived from LiDAR 5 Metre Grid (Geoscience Australia, 2015), elevation data collected from a Real Time Kinematic (RTK) GPS survey (HydroSurvey Australia, 2009), and 1.0 m resolution multibeam bathymetry surveys (Solihuddin et al., 2016). We assessed accuracy across three distinct intertidal environments: sandy beaches and shores, tidal flats, and rocky shores and reefs:
 
+![NIDEM validation](bishoptaylor_2019/Revised_Figure6_validationdensity.png "NIDEM validation")
 
 ### Limitations
 
@@ -130,7 +131,7 @@ Areas with comparatively steep coastlines and small tidal ranges are poorly capt
 
 Poor model performance in validation against multibeam bathymetry datasets in rocky reefs of the southern Kimberly region highlighted limitations in the NIDEM model that occur when the global OTPS TPX08 Atlas Tidal Model was unable to predict complex and asynchronous local tidal patterns. This is likely to also reduce model accuracy in complex estuaries and coastal wetlands where river flow or vegetative resistance causes hydrodynamic attenuation in tidal flow.
 
-The complex temporal behaviour of tides mean that a sun synchronous sensor like Landsat does not observe the full range of the tidal cycle at all locations. This causes spatial bias in the proportion of the tidal range observed in different regions, which can prevent NIDEM from providing elevation data for areas of the intertidal zone exposed or inundated at the extremes of the tidal range. Accordingly, NIDEM provides elevation data for the portion of the tidal range observed by Landsat, rather than the full tidal range.
+The complex temporal behaviour of tides mean that a sun synchronous sensor like Landsat does not observe the full range of the tidal cycle at all locations (see image below). This causes spatial bias in the proportion of the tidal range observed in different regions, which can prevent NIDEM from providing elevation data for areas of the intertidal zone exposed or inundated at the extremes of the tidal range. Accordingly, NIDEM provides elevation data for the portion of the tidal range observed by Landsat, rather than the full tidal range.
 
 While image compositing and masking methods have been applied to remove the majority of noise and non-tidal artefacts from NIDEM, issues remain in several locations. It is recommended that the data be used with caution in the following areas:
 
@@ -138,6 +139,8 @@ While image compositing and masking methods have been applied to remove the majo
 * Port Phillip Bay in Victoria
 * The eastern coast of Tasmania and King Island
 * Saunders Reef and surrounds in the northern Coral Sea
+
+![NIDEM offset](bishoptaylor_2019/Revised_Figure7_offsetspread.png "NIDEM offset")
 
 ## References
 
