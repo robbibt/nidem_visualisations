@@ -11,5 +11,7 @@ https://github.com/GeoscienceAustralia/nidem
 ## 3D visualisations
 
 Darwin: https://robbibt.github.io/nidem/visualisation/nidem_3dvis/nidem_3dvis.html
+
 Pilbara: https://robbibt.github.io/nidem/visualisation/nidem_3dvis_135/nidem_3dvis.html
+
 Mackay: https://robbibt.github.io/nidem/visualisation/nidem_3dvis_66/index.html
