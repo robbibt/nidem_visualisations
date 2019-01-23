@@ -15,3 +15,7 @@ Darwin: https://robbibt.github.io/nidem_visualisations/visualisation/nidem_3dvis
 Pilbara: https://robbibt.github.io/nidem_visualisations/visualisation/nidem_3dvis_135/nidem_3dvis.html
 
 Mackay: https://robbibt.github.io/nidem_visualisations/visualisation/nidem_3dvis_66/index.html
+
+## Test interactive frame
+
+<iframe style="width: 720px; height: 600px; border: none;" src="https://nationalmap.gov.au/#share=s-gd7llPmJYATF7Lqa1GJnUS50lGI" allowFullScreen mozAllowFullScreen webkitAllowFullScreen></iframe>
