@@ -150,7 +150,7 @@ To assess the accuracy of NIDEM, we compared modelled elevations against three i
 
 ### Limitations
 
-NIDEM covers the exposed intertidal zone which excludes intertidal vegetation communities such as mangroves.
+NIDEM covers the exposed intertidal zone which includes sandy beaches and shores, tidal flats and rocky shores and reefs. The model excludes intertidal vegetation communities such as mangroves.
 
 Areas with comparatively steep coastlines and small tidal ranges are poorly captured in the 25 m spatial resolution input Landsat data and resulting NIDEM model. This includes much of the south eastern and southern Australian coast (e.g. New South Wales, Victoria, Tasmania). 
 
